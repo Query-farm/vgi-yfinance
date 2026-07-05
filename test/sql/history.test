@@ -1,0 +1,59 @@
+# name: test/sql/history.test
+# description: yf.history — bind-time typed schema (network-free) + live OHLCV invariants.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+SET search_path='yf.main';
+
+# --- Schema: DESCRIBE binds only (no network), so these are fully deterministic. ---
+
+query T
+SELECT string_agg(column_name, ',') FROM (DESCRIBE SELECT * FROM yf.history('AAPL', range := '5d'));
+----
+symbol,timestamp,open,high,low,close,adjclose,volume
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM yf.history('AAPL', range := '5d')) WHERE column_name = 'timestamp';
+----
+TIMESTAMP WITH TIME ZONE
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM yf.history('AAPL', range := '5d')) WHERE column_name = 'close';
+----
+DOUBLE
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM yf.history('AAPL', range := '5d')) WHERE column_name = 'volume';
+----
+BIGINT
+
+# --- Live invariants: these hit Yahoo. Assert shape, not exact (moving) values. ---
+
+# A liquid megacap returns candles for a 1-month daily window.
+query I
+SELECT (count(*) > 0)::INT FROM yf.history('AAPL', range := '1mo', bar := '1d');
+----
+1
+
+# Closing prices are positive.
+query I
+SELECT (min(close) > 0)::INT FROM yf.history('AAPL', range := '1mo');
+----
+1
+
+# The symbol column echoes the requested ticker.
+query T
+SELECT DISTINCT symbol FROM yf.history('MSFT', range := '5d');
+----
+MSFT
+
+# An explicit start/end date range also returns rows.
+query I
+SELECT (count(*) > 0)::INT FROM yf.history('SPY', start_date := '2024-01-01', end_date := '2024-03-01');
+----
+1

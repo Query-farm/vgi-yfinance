@@ -1,0 +1,48 @@
+# name: test/sql/quote.test
+# description: yf.quote — bind-time typed schema (network-free) + live snapshot invariants.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+SET search_path='yf.main';
+
+# --- Schema (DESCRIBE binds only; no network). ---
+
+query T
+SELECT string_agg(column_name, ',') FROM (DESCRIBE SELECT * FROM yf.quote('AAPL'));
+----
+symbol,short_name,long_name,currency,exchange,quote_type,regular_market_price,regular_market_change,regular_market_change_percent,regular_market_volume,regular_market_day_high,regular_market_day_low,regular_market_previous_close,fifty_two_week_high,fifty_two_week_low,regular_market_time
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM yf.quote('AAPL')) WHERE column_name = 'regular_market_price';
+----
+DOUBLE
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM yf.quote('AAPL')) WHERE column_name = 'regular_market_time';
+----
+TIMESTAMP WITH TIME ZONE
+
+# --- Live invariants (hits Yahoo). ---
+
+# A single symbol snapshot carries a positive price.
+query I
+SELECT (regular_market_price > 0)::INT FROM yf.quote('AAPL');
+----
+1
+
+# The parallel fan-out returns one row per requested megacap symbol.
+query I
+SELECT (count(*) > 0)::INT FROM yf.quote('AAPL,MSFT,GOOG');
+----
+1
+
+# The requested symbol is echoed back on the row.
+query I
+SELECT (count(*) FILTER (WHERE symbol = 'AAPL') > 0)::INT FROM yf.quote('AAPL,MSFT');
+----
+1

@@ -1,0 +1,37 @@
+# name: test/sql/search.test
+# description: yf.search — bind-time typed schema (network-free) + live lookup invariants.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+SET search_path='yf.main';
+
+# --- Schema (DESCRIBE binds only; no network). ---
+
+query T
+SELECT string_agg(column_name, ',') FROM (DESCRIBE SELECT * FROM yf.search('apple'));
+----
+symbol,short_name,long_name,exchange,quote_type,type_disp,score
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM yf.search('apple')) WHERE column_name = 'score';
+----
+DOUBLE
+
+# --- Live invariants (hits Yahoo). ---
+
+# Searching for "apple" surfaces the AAPL ticker.
+query I
+SELECT (count(*) FILTER (WHERE symbol = 'AAPL') > 0)::INT FROM yf.search('apple');
+----
+1
+
+# The count arg bounds (and does not zero out) the result set.
+query I
+SELECT (count(*) BETWEEN 1 AND 5)::INT FROM yf.search('vanguard', count := 5);
+----
+1
