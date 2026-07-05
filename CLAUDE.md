@@ -66,18 +66,16 @@ SELECT * FROM yf.history('AAPL', range := '6mo');
 Not yet covered by a haybarn `.test` (no DuckDB-live E2E). If adding one, mirror the
 `.test` layout under a built `vgi` extension per the vgi-typescript CLAUDE.md.
 
-## SDK version / community-extension skew (why the vendored tarball)
+## SDK dependency (@query-farm/vgi ^0.8.0)
 
-The published `@query-farm/vgi@0.7.0` on npm predates the `catalog_attach` `attach_catalogs`
-field, but the **community** vgi extension (`INSTALL vgi FROM community`, ~v36e9e1a) already
-requires it — so a worker built on npm 0.7.0 fails to ATTACH with *"field count differs:
-expected 15, actual 14"*. The local `vgi-typescript` HEAD does emit it, so this repo vendors
-it: `query-farm-vgi-0.7.0.tgz` (packed from `~/Development/vgi-typescript` via `npm pack`),
-referenced as `"@query-farm/vgi": "file:./query-farm-vgi-0.7.0.tgz"`. Peers
-`@query-farm/apache-arrow ^21.1.1` + `@query-farm/vgi-rpc ^0.9.0` stay as normal deps so
-there's a single arrow copy (no dual-instance "Unrecognized type NONE"). **When a newer
-`@query-farm/vgi` with `attach_catalogs` is published to npm, drop the tarball and switch
-back to a `^` range.** (This skew affects the whole azure TS family too, not just this repo.)
+Depends on `@query-farm/vgi ^0.8.0` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
++ `@query-farm/vgi-rpc ^0.9.0` (single arrow copy → no dual-instance "Unrecognized type
+NONE"). 0.8.0 is the first published SDK that emits the `catalog_attach` `attach_catalogs`
+field the current community vgi extension requires. HISTORY: this repo briefly vendored
+`query-farm-vgi-0.7.0.tgz` (packed from local vgi-typescript HEAD) because published npm
+0.7.0 lacked that field and ATTACH failed with *"field count differs: expected 15, actual
+14"*; the tarball was dropped once 0.8.0 shipped. If a fresh `bun install` can't find a
+newer published version, clear the stale registry cache: `bun pm cache rm`.
 
 ## Reserved-keyword arg names (real UX trap, not just a test quirk)
 
