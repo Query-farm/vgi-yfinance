@@ -55,6 +55,18 @@ export function makeHistoryFunction(get: YahooGet) {
       end_date: new Utf8(),
     },
     argDefaults: { range: "1mo", bar: "1d", prepost: false, start_date: "", end_date: "" },
+    argDocs: {
+      symbol:
+        "The ticker to fetch, written the way Yahoo lists it — equities, class shares, crypto pairs, and caret-prefixed indices are all accepted. Required.",
+      range:
+        "Named lookback window: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, or max. Ignored when start_date is set. Default '1mo'.",
+      bar:
+        "Candle width — how much time each bar spans: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo. Intraday widths only work on recent ranges. Default '1d'.",
+      prepost: "Include pre-market and post-market candles. Default false.",
+      start_date:
+        "Inclusive start date 'YYYY-MM-DD'. When set, [start_date, end_date) overrides range. Empty = use range.",
+      end_date: "Exclusive end date 'YYYY-MM-DD'. Defaults to now when start_date is set.",
+    },
     onBind: (p) => {
       if (p.args.symbol == null || String(p.args.symbol).trim() === "") {
         throw new ArgumentValidationError("history: symbol is required");
@@ -79,18 +91,41 @@ export function makeHistoryFunction(get: YahooGet) {
       state.done = true;
     },
     examples: [
-      { sql: "SELECT * FROM yf.history('AAPL')", description: "Last month of daily candles for Apple" },
+      { sql: "SELECT * FROM yfinance.main.history('AAPL')", description: "Last month of daily candles for Apple" },
       {
-        sql: "SELECT * FROM yf.history('MSFT', range := '1y', bar := '1wk')",
-        description: "One year of weekly candles for Microsoft",
+        sql: "SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk')",
+        description: "One year of weekly closes for Microsoft",
       },
       {
-        sql: "SELECT * FROM yf.history('SPY', start_date := '2024-01-01', end_date := '2024-12-31')",
-        description: "Daily candles across an explicit date range",
+        sql: "SELECT timestamp, close FROM yfinance.main.history('SPY', start_date := '2024-01-01', end_date := '2024-12-31')",
+        description: "Daily closes across an explicit date range",
       },
     ],
-    categories: ["finance", "market-data", "timeseries"],
-    tags: { category: "finance", source: "yahoo-finance" },
+    tags: {
+      "vgi.category": "market-data",
+      "vgi.doc_llm":
+        "Daily or intraday OHLCV candles for a single ticker over a chosen window. Use it for " +
+        "price history, charting, returns, and technical analysis. Pick a named range (range := " +
+        "'1y') with a candle width (bar := '1wk'), or an explicit start_date/end_date range. " +
+        "Thin or halted candles come back as NULL cells rather than failing the scan.",
+      "vgi.doc_md":
+        "## history\n\n" +
+        "Historical OHLCV candles for one ticker from Yahoo's chart feed. Choose a named `range` " +
+        "plus a `bar` (candle width), or pass an explicit `start_date`/`end_date`. Emits one row " +
+        "per candle, ordered oldest-first.\n\n" +
+        "```sql\nSELECT timestamp, close FROM yfinance.main.history('AAPL', range := '6mo');\n```",
+      "vgi.result_columns_md":
+        "| Column | Type | Meaning |\n" +
+        "| --- | --- | --- |\n" +
+        "| `symbol` | VARCHAR | The ticker (echoed from Yahoo's metadata). |\n" +
+        "| `timestamp` | TIMESTAMP (UTC) | Candle open time. |\n" +
+        "| `open` | DOUBLE | Opening price. |\n" +
+        "| `high` | DOUBLE | Session high. |\n" +
+        "| `low` | DOUBLE | Session low. |\n" +
+        "| `close` | DOUBLE | Closing price. |\n" +
+        "| `adjclose` | DOUBLE | Split/dividend-adjusted close (falls back to close). |\n" +
+        "| `volume` | BIGINT | Shares/contracts traded. |",
+    },
   });
 }
 
@@ -109,6 +144,11 @@ export function makeQuoteFunction(get: YahooGet) {
       "price, change vs previous close, day range, 52-week range, volume. Pass a " +
       "comma-separated symbol list.",
     args: { symbols: new Utf8() },
+    argDocs: {
+      symbols:
+        "One ticker or a comma/space-separated list (e.g. 'AAPL' or 'AAPL,MSFT,GOOG'). One request " +
+        "is made per symbol; an unresolvable ticker is dropped rather than failing the batch. Required.",
+    },
     onBind: (p) => {
       if (p.args.symbols == null || String(p.args.symbols).trim() === "") {
         throw new ArgumentValidationError("quote: symbols is required (comma-separated list)");
@@ -126,14 +166,43 @@ export function makeQuoteFunction(get: YahooGet) {
       state.done = true;
     },
     examples: [
-      { sql: "SELECT * FROM yf.quote('AAPL')", description: "Snapshot quote for Apple" },
       {
-        sql: "SELECT symbol, regular_market_price FROM yf.quote('AAPL,MSFT,GOOG')",
+        sql: "SELECT symbol, regular_market_price, regular_market_change_percent FROM yfinance.main.quote('AAPL')",
+        description: "Snapshot quote for Apple",
+      },
+      {
+        sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')",
         description: "Latest price for several symbols at once",
       },
     ],
-    categories: ["finance", "market-data"],
-    tags: { category: "finance", source: "yahoo-finance" },
+    tags: {
+      "vgi.category": "market-data",
+      "vgi.doc_llm":
+        "A current market snapshot for one or more tickers: last price, change vs the previous " +
+        "close, day high/low, 52-week high/low, and volume. Keyless — one lightweight request per " +
+        "symbol. Use it for watchlists and dashboards; use `history` for a time series.",
+      "vgi.doc_md":
+        "## quote\n\n" +
+        "Current-price snapshot for a comma-separated list of tickers, one row per symbol. Backed " +
+        "by Yahoo's keyless chart-metadata plane, so `change`/`change_percent` are derived from the " +
+        "previous close and market cap is not available.\n\n" +
+        "```sql\nSELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT');\n```",
+      "vgi.result_columns_md":
+        "| Column | Type | Meaning |\n" +
+        "| --- | --- | --- |\n" +
+        "| `symbol` | VARCHAR | The ticker. |\n" +
+        "| `short_name` / `long_name` | VARCHAR | Display names. |\n" +
+        "| `currency` | VARCHAR | Quote currency. |\n" +
+        "| `exchange` | VARCHAR | Listing exchange. |\n" +
+        "| `quote_type` | VARCHAR | Instrument type (EQUITY, ETF, …). |\n" +
+        "| `regular_market_price` | DOUBLE | Last regular-session price. |\n" +
+        "| `regular_market_change` / `_percent` | DOUBLE | Change vs previous close (absolute / %). |\n" +
+        "| `regular_market_volume` | BIGINT | Session volume. |\n" +
+        "| `regular_market_day_high` / `_low` | DOUBLE | Session high / low. |\n" +
+        "| `regular_market_previous_close` | DOUBLE | Prior session close. |\n" +
+        "| `fifty_two_week_high` / `_low` | DOUBLE | 52-week high / low. |\n" +
+        "| `regular_market_time` | TIMESTAMP (UTC) | Time of the last price. |",
+    },
   });
 }
 
@@ -153,6 +222,10 @@ export function makeSearchFunction(get: YahooGet) {
       "symbols with exchange and instrument type, best matches first.",
     args: { query: new Utf8(), count: new Int64() },
     argDefaults: { count: 8 },
+    argDocs: {
+      query: "Free-text company name or partial ticker symbol to look up. Required.",
+      count: "Maximum candidate symbols to return, clamped to 1..50. Default 8.",
+    },
     onBind: (p) => {
       if (p.args.query == null || String(p.args.query).trim() === "") {
         throw new ArgumentValidationError("search: query is required");
@@ -171,13 +244,35 @@ export function makeSearchFunction(get: YahooGet) {
       state.done = true;
     },
     examples: [
-      { sql: "SELECT * FROM yf.search('apple')", description: "Find symbols matching 'apple'" },
       {
-        sql: "SELECT symbol, long_name, exchange FROM yf.search('vanguard', count := 20)",
+        sql: "SELECT symbol, short_name, exchange FROM yfinance.main.search('apple')",
+        description: "Find symbols matching 'apple'",
+      },
+      {
+        sql: "SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20)",
         description: "Up to 20 candidate symbols for a query",
       },
     ],
-    categories: ["finance", "reference"],
-    tags: { category: "finance", source: "yahoo-finance" },
+    tags: {
+      "vgi.category": "reference",
+      "vgi.doc_llm":
+        "Resolve a company name or partial symbol to candidate ticker symbols, best matches first. " +
+        "Use it when you only know a name — take the resulting `symbol` and pass it to `history` or " +
+        "`quote`. Returns equities, ETFs, indices, and other instruments with their exchange and type.",
+      "vgi.doc_md":
+        "## search\n\n" +
+        "Ticker lookup over Yahoo's search endpoint. Returns up to `count` candidate symbols " +
+        "(news results are dropped), ranked by Yahoo's relevance score.\n\n" +
+        "```sql\nSELECT symbol, long_name FROM yfinance.main.search('microsoft');\n```",
+      "vgi.result_columns_md":
+        "| Column | Type | Meaning |\n" +
+        "| --- | --- | --- |\n" +
+        "| `symbol` | VARCHAR | The ticker to use with `history`/`quote`. |\n" +
+        "| `short_name` / `long_name` | VARCHAR | Instrument names. |\n" +
+        "| `exchange` | VARCHAR | Listing exchange (display name). |\n" +
+        "| `quote_type` | VARCHAR | Instrument type code (EQUITY, ETF, INDEX, …). |\n" +
+        "| `type_disp` | VARCHAR | Human-friendly instrument type. |\n" +
+        "| `score` | DOUBLE | Yahoo relevance score (higher = better match). |",
+    },
   });
 }
