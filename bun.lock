@@ -6,7 +6,7 @@
       "name": "vgi-yfinance",
       "dependencies": {
         "@query-farm/apache-arrow": "^21.1.1",
-        "@query-farm/vgi": "^0.8.0",
+        "@query-farm/vgi": "^0.11.0",
         "@query-farm/vgi-rpc": "^0.9.0",
       },
       "devDependencies": {
@@ -22,7 +22,7 @@
 
     "@query-farm/flechette": ["@query-farm/flechette@2.4.0", "", {}, "sha512-1dQTJZYsGdrE6isTHPVGb8WBI8GttY4vTsC3Rh1C+OZAdZbR8+Gg4Ds/RgXbBK+3Eeiaph9aR8Vx67ieEhtMhw=="],
 
-    "@query-farm/vgi": ["@query-farm/vgi@0.8.0", "", { "dependencies": { "@noble/ciphers": "^2.2.0", "@query-farm/flechette": "^2.4.0" }, "peerDependencies": { "@query-farm/apache-arrow": "^21.1.1", "@query-farm/vgi-rpc": "^0.9.0" } }, "sha512-IfxWSrh0pTPk/xSWHk0sNJ88MXM998JEVFu0td/CTcSyyAuEImHDFi8ddYBOVvYHXXDPTlDUVGtwLJhJwC4YPA=="],
+    "@query-farm/vgi": ["@query-farm/vgi@0.11.0", "", { "dependencies": { "@noble/ciphers": "^2.2.0", "@query-farm/flechette": "^2.4.0" }, "peerDependencies": { "@query-farm/apache-arrow": "^21.1.1", "@query-farm/vgi-rpc": "^0.9.0" } }, "sha512-yTnMpogXuEvJ9mCfYk9vaoYjs9hwJrFgbeiiX4JhHNgRCedzXcXgTAdmdy+t5n5Dw7itvwNIFmFjSqcZpUC/ew=="],
 
     "@query-farm/vgi-rpc": ["@query-farm/vgi-rpc@0.9.0", "", { "dependencies": { "@noble/ciphers": "^2.2.0", "@query-farm/apache-arrow": "^21.1.1", "@query-farm/flechette": "^2.4.0", "fzstd": "^0.1.1", "oauth4webapi": "^3.8.6" }, "peerDependencies": { "@aws-sdk/client-s3": ">=3.0.0", "@aws-sdk/s3-request-presigner": ">=3.0.0", "@google-cloud/storage": ">=7.0.0", "@opentelemetry/api": ">=1.4.0" }, "optionalPeers": ["@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner", "@google-cloud/storage", "@opentelemetry/api"] }, "sha512-K6CoK9aBuNmg0OM78xe0Qcmt7gxJOskvKdG5WnjCmaa+o/F2SvQdx6vRg83EaOMJUEYo9RuJ4IXDZnQS8evS8g=="],
 

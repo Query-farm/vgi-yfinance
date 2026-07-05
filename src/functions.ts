@@ -56,13 +56,21 @@ export function makeHistoryFunction(get: YahooGet) {
       end_date: new Utf8(),
     },
     argDefaults: { range: "1mo", bar: "1d", prepost: false, start_date: "", end_date: "" },
+    // Yahoo's fixed vocabularies — surfaced via vgi_function_arguments() so agents
+    // can discover them, and enforced at bind so a bad value fails fast.
+    argConstraints: {
+      range: { choices: ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"] },
+      bar: {
+        choices: ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"],
+      },
+    },
     argDocs: {
       symbol:
         "The ticker to fetch, written the way Yahoo lists it — equities, class shares, crypto pairs, and caret-prefixed indices are all accepted. Required, and passed as the first positional argument (not symbol := ...).",
       range:
-        "Named lookback window: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, or max. Ignored when start_date is set. Default '1mo'.",
+        "Named lookback window over which to fetch candles. Ignored when start_date is set. Default '1mo'.",
       bar:
-        "Candle width — how much time each bar spans: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo. Intraday widths only work on recent ranges. Default '1d'.",
+        "Candle width — how much time each bar spans. Intraday widths only work on recent ranges. Default '1d'.",
       prepost: "Include pre-market and post-market candles. Default false.",
       start_date:
         "Inclusive start date 'YYYY-MM-DD'. When set, [start_date, end_date) overrides range. Empty = use range.",
