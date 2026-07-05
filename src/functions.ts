@@ -45,7 +45,8 @@ export function makeHistoryFunction(get: YahooGet) {
     description:
       "Historical OHLCV candles for one symbol from Yahoo Finance (v8 chart API). " +
       "Pick a named window (range := '1y') plus a candle width (bar := '1wk'), or an " +
-      "explicit start/end date range. Emits symbol, timestamp (UTC), o/h/l/c/adjclose, volume.",
+      "explicit start_date/end_date range. Returns columns symbol, timestamp (UTC), open, " +
+      "high, low, close, adjclose, and volume.",
     args: {
       symbol: new Utf8(),
       range: new Utf8(),
@@ -57,7 +58,7 @@ export function makeHistoryFunction(get: YahooGet) {
     argDefaults: { range: "1mo", bar: "1d", prepost: false, start_date: "", end_date: "" },
     argDocs: {
       symbol:
-        "The ticker to fetch, written the way Yahoo lists it — equities, class shares, crypto pairs, and caret-prefixed indices are all accepted. Required.",
+        "The ticker to fetch, written the way Yahoo lists it — equities, class shares, crypto pairs, and caret-prefixed indices are all accepted. Required, and passed as the first positional argument (not symbol := ...).",
       range:
         "Named lookback window: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, or max. Ignored when start_date is set. Default '1mo'.",
       bar:
@@ -147,7 +148,8 @@ export function makeQuoteFunction(get: YahooGet) {
     argDocs: {
       symbols:
         "One ticker or a comma/space-separated list (e.g. 'AAPL' or 'AAPL,MSFT,GOOG'). One request " +
-        "is made per symbol; an unresolvable ticker is dropped rather than failing the batch. Required.",
+        "is made per symbol; an unresolvable ticker is dropped rather than failing the batch. " +
+        "Required, and passed as the first positional argument (not symbols := ...).",
     },
     onBind: (p) => {
       if (p.args.symbols == null || String(p.args.symbols).trim() === "") {
@@ -223,7 +225,8 @@ export function makeSearchFunction(get: YahooGet) {
     args: { query: new Utf8(), count: new Int64() },
     argDefaults: { count: 8 },
     argDocs: {
-      query: "Free-text company name or partial ticker symbol to look up. Required.",
+      query:
+        "Free-text company name or partial ticker symbol to look up. Required, and passed as the first positional argument (not query := ...).",
       count: "Maximum candidate symbols to return, clamped to 1..50. Default 8.",
     },
     onBind: (p) => {

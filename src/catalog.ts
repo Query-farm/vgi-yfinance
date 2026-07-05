@@ -61,23 +61,35 @@ const CATALOG_TAGS: Record<string, string> = {
       sql: "SELECT timestamp, close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp",
     },
   ]),
-  // The agent-suitability suite (catalog only). reference_sql is grader-only.
+  // The agent-suitability suite (catalog only); reference_sql / check_sql / success_criteria
+  // are grader-only. Grading uses the strongest AVAILABLE oracle in order: reference_sql
+  // (exact result-set compare) → check_sql (boolean assertion) → success_criteria (LLM
+  // judge). We grade every task with a deterministic check_sql that asserts the specific
+  // ground truth (MSFT is findable, AAPL trades in USD, AAPL history returns candles), and
+  // deliberately OMIT reference_sql: exact result-set compare is unusable here because
+  // (a) live prices move between runs and (b) a free-form analyst rarely reproduces the
+  // reference query's exact column/row shape — and since Tier 1 wins when present, a
+  // reference_sql would override check_sql. check_sql also drives object coverage;
+  // success_criteria records what a correct answer looks like.
   "vgi.agent_test_tasks": JSON.stringify([
     {
-      name: "apple_last_close",
-      prompt: "What was Apple's most recent daily closing price?",
-      reference_sql:
-        "SELECT close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp DESC LIMIT 1",
-    },
-    {
       name: "microsoft_ticker",
-      prompt: "What stock ticker symbol does Microsoft trade under?",
-      reference_sql: "SELECT symbol FROM yfinance.main.search('microsoft') LIMIT 1",
+      prompt: "What stock ticker symbol does Microsoft Corporation trade under?",
+      check_sql: "SELECT count(*) > 0 FROM yfinance.main.search('microsoft') WHERE symbol = 'MSFT'",
+      success_criteria: "The answer identifies MSFT as Microsoft's ticker, found via the search function.",
     },
     {
-      name: "tesla_price",
-      prompt: "What is the current market price of Tesla stock?",
-      reference_sql: "SELECT regular_market_price FROM yfinance.main.quote('TSLA')",
+      name: "apple_currency",
+      prompt: "In what currency is Apple (AAPL) stock priced?",
+      check_sql: "SELECT count(*) > 0 FROM yfinance.main.quote('AAPL') WHERE currency = 'USD'",
+      success_criteria: "The answer states AAPL is priced in USD, obtained from the quote function.",
+    },
+    {
+      name: "apple_recent_close",
+      prompt: "What was Apple's (AAPL) closing price on the most recent trading day?",
+      check_sql: "SELECT count(*) > 0 FROM yfinance.main.history('AAPL', range := '5d')",
+      success_criteria:
+        "The answer reports a plausible recent AAPL daily closing price obtained from the history function.",
     },
   ]),
 };
