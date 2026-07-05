@@ -13,14 +13,47 @@ Everything rides Yahoo's **keyless, un-gated** planes — there is no secret to 
 no login. (The worker deliberately avoids the `v7/finance/quote` and `v10/quoteSummary`
 planes, which now return `401 Unauthorized` from datacenter IPs even with a crumb.)
 
-> **Status:** solid beta. Unit tests, own-source typecheck, and a haybarn SQLLogic E2E
-> suite (the worker attached to a real DuckDB with the community `vgi` extension) are all
-> green, and every function is verified live against Yahoo.
+> **Status:** released — [`v0.1.0`](https://github.com/Query-farm/vgi-yfinance/releases).
+> CI is green (unit tests, own-source typecheck, haybarn SQLLogic E2E against a real DuckDB
+> + the community `vgi` extension, and a `vgi-lint` metadata-quality gate at 100/100), and
+> every function is verified live against Yahoo.
 
 ## Install / attach
 
-The worker runs on [Bun](https://bun.sh). Install deps once, then `ATTACH` it from DuckDB
-with the `vgi` extension loaded:
+### Option A — prebuilt binary (recommended)
+
+Each [release](https://github.com/Query-farm/vgi-yfinance/releases) ships a self-contained
+executable per platform, so the host needs **neither Bun nor `node_modules`**. Archives are
+named `vgi-yfinance-<tag>-<platform>.tar.gz` for `linux_amd64`, `linux_arm64`, `osx_amd64`,
+`osx_arm64`, and `windows_amd64`, each with a SHA256, a keyless **cosign** signature, and a
+**SLSA** build-provenance attestation.
+
+```bash
+# download the archive for your platform from the releases page, then:
+tar xzf vgi-yfinance-v0.1.0-osx_arm64.tar.gz     # → vgi-yfinance-worker
+```
+
+```sql
+LOAD vgi;
+ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '/path/to/vgi-yfinance-worker');
+```
+
+Optionally verify the download before trusting it:
+
+```sh
+cosign verify-blob \
+  --bundle vgi-yfinance-v0.1.0-osx_arm64.tar.gz.cosign.bundle \
+  --certificate-identity-regexp '^https://github\.com/Query-farm/vgi-actions/\.github/workflows/ts-release\.yml@' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  vgi-yfinance-v0.1.0-osx_arm64.tar.gz
+
+gh attestation verify vgi-yfinance-v0.1.0-osx_arm64.tar.gz \
+  --repo Query-farm/vgi-yfinance --signer-repo Query-farm/vgi-actions
+```
+
+### Option B — from source (Bun)
+
+For development or the latest `main`, run the worker on [Bun](https://bun.sh):
 
 ```bash
 bun install
@@ -52,7 +85,7 @@ FROM yf.history('SPY', start_date := '2024-01-01', end_date := '2024-12-31');
 | Arg | Default | Notes |
 | --- | --- | --- |
 | `symbol` | *(required)* | A single ticker, e.g. `AAPL`, `BTC-USD`, `^GSPC`. |
-| `range` | `'1mo'` | `1d 5d 1mo 3mo 6mo 1y 2y 5y 10y ytd max`. Ignored when `start` is set. |
+| `range` | `'1mo'` | `1d 5d 1mo 3mo 6mo 1y 2y 5y 10y ytd max`. Ignored when `start_date` is set. |
 | `bar` | `'1d'` | Candle width (Yahoo's `interval`): `1m 2m 5m 15m 30m 60m 90m 1h 1d 5d 1wk 1mo 3mo`. Named `bar`, not `interval`, because `INTERVAL` is a reserved SQL keyword. |
 | `prepost` | `false` | Include pre/post-market candles. |
 | `start_date` / `end_date` | `''` | `YYYY-MM-DD`. When `start_date` is set, `[start_date, end_date)` overrides `range`; `end_date` defaults to now. (Named `*_date` because `END` is a reserved SQL keyword.) |
@@ -102,6 +135,14 @@ The E2E suite needs the haybarn runner and the vgi extension, once:
 ```bash
 uv tool install haybarn-unittest
 echo "INSTALL vgi FROM community;" | uvx haybarn-cli
+```
+
+Metadata quality is graded by [`vgi-lint`](https://github.com/Query-farm/vgi-lint-check)
+(catalog/function docs, tags, per-argument docs, examples, and an agent-suitability suite);
+CI runs it as a gate. Locally:
+
+```bash
+uvx --prerelease allow --from vgi-lint-check vgi-lint bin/vgi-yfinance-worker --fail-on info
 ```
 
 The pure request/response logic lives in `src/yahoo.ts` and is fully unit-tested against
