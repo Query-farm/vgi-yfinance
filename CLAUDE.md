@@ -12,8 +12,9 @@ built on `@query-farm/vgi` (the TS SDK). Keyless — no secret type, no auth.
   parsing is defensive: a missing branch degrades to `[]` / `null` cells, never a throw
   (except `history` surfacing Yahoo's own `error` envelope).
 - **`src/client.ts` — the only network module.** `makeYahooGet()` returns the real `get`.
-  Its one job beyond `fetch` is setting the browser-like User-Agent Yahoo requires. Not
-  unit-tested (like the azure workers' MSAL minter); verified live.
+  Its one job beyond `fetch` is setting the browser-like User-Agent Yahoo requires. No
+  dedicated unit test (like the azure workers' MSAL minter); exercised live by the
+  HTTP-transport E2E test (`test/http-transport.test.ts`, which uses the real `get`).
 - **`src/schema.ts` — typed Arrow schemas + batch builders.** Finance data has a stable
   shape, so we emit real typed columns (`Float64`/`Int64`/`Timestamp[s,UTC]`), not JSON.
   Timestamp/Int64 canonical is a **bigint** of the type's unit — see `bigOrNull`.
@@ -39,7 +40,7 @@ built on `@query-farm/vgi` (the TS SDK). Keyless — no secret type, no auth.
 
 ```bash
 bun install
-bun test            # 27 tests: pure driver (SDK-free) + Arrow batch builders (needs SDK)
+bun test            # 30 tests: pure driver (SDK-free) + Arrow batch builders + HTTP-transport E2E
 bun run typecheck   # own-source only; scripts/typecheck.sh filters node_modules errors
 ./run_tests.sh      # haybarn SQLLogic E2E: worker under real DuckDB + community vgi ext
 ```
