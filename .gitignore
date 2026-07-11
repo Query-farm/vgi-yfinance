@@ -4,3 +4,5 @@ dist/
 .env
 .DS_Store
 duckdb_unittest_tempdir/
+.vgi-review-cache.json
+.vgi-sim-cache.json

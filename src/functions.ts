@@ -100,14 +100,17 @@ export function makeHistoryFunction(get: YahooGet) {
       state.done = true;
     },
     examples: [
-      { sql: "SELECT * FROM yfinance.main.history('AAPL')", description: "Last month of daily candles for Apple" },
+      {
+        sql: "SELECT timestamp, close, volume FROM yfinance.main.history('AAPL', range := '1mo') ORDER BY timestamp DESC LIMIT 5",
+        description: "The five most recent daily closes and volumes for Apple",
+      },
       {
         sql: "SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk')",
         description: "One year of weekly closes for Microsoft",
       },
       {
-        sql: "SELECT timestamp, close FROM yfinance.main.history('SPY', start_date := '2024-01-01', end_date := '2024-12-31')",
-        description: "Daily closes across an explicit date range",
+        sql: "SELECT max(high) AS high_52w, min(low) AS low_52w FROM yfinance.main.history('SPY', range := '1y')",
+        description: "The 52-week high and low for SPY, aggregated from daily candles",
       },
     ],
     tags: {
@@ -120,20 +123,25 @@ export function makeHistoryFunction(get: YahooGet) {
       "vgi.doc_md":
         "## history\n\n" +
         "Historical OHLCV candles for one ticker from Yahoo's chart feed. Choose a named `range` " +
-        "plus a `bar` (candle width), or pass an explicit `start_date`/`end_date`. Emits one row " +
-        "per candle, ordered oldest-first.\n\n" +
-        "```sql\nSELECT timestamp, close FROM yfinance.main.history('AAPL', range := '6mo');\n```",
-      "vgi.result_columns_md":
-        "| Column | Type | Meaning |\n" +
-        "| --- | --- | --- |\n" +
-        "| `symbol` | VARCHAR | The ticker (echoed from Yahoo's metadata). |\n" +
-        "| `timestamp` | TIMESTAMP (UTC) | Candle open time. |\n" +
-        "| `open` | DOUBLE | Opening price. |\n" +
-        "| `high` | DOUBLE | Session high. |\n" +
-        "| `low` | DOUBLE | Session low. |\n" +
-        "| `close` | DOUBLE | Closing price. |\n" +
-        "| `adjclose` | DOUBLE | Split/dividend-adjusted close (falls back to close). |\n" +
-        "| `volume` | BIGINT | Shares/contracts traded. |",
+        "(e.g. `'6mo'`, `'1y'`, `'max'`) plus a `bar` candle width (`'1d'`, `'1wk'`, `'1mo'`, or an " +
+        "intraday width like `'5m'` on recent ranges), or pass an explicit `start_date`/`end_date` " +
+        "pair to override `range`. Emits one row per candle, ordered oldest-first; thin or halted " +
+        "candles come back with NULL price cells rather than failing the scan. See the example " +
+        "queries for ready-to-run calls.",
+      "vgi.result_columns_schema": JSON.stringify([
+        { name: "symbol", type: "VARCHAR", description: "The ticker, echoed from Yahoo's chart metadata." },
+        { name: "timestamp", type: "TIMESTAMP WITH TIME ZONE", description: "Candle open time, in UTC." },
+        { name: "open", type: "DOUBLE", description: "Opening price for the candle." },
+        { name: "high", type: "DOUBLE", description: "Highest traded price during the candle." },
+        { name: "low", type: "DOUBLE", description: "Lowest traded price during the candle." },
+        { name: "close", type: "DOUBLE", description: "Closing price for the candle." },
+        {
+          name: "adjclose",
+          type: "DOUBLE",
+          description: "Split/dividend-adjusted close; falls back to close when Yahoo omits it.",
+        },
+        { name: "volume", type: "BIGINT", description: "Shares or contracts traded during the candle." },
+      ]),
     },
   });
 }
@@ -194,24 +202,44 @@ export function makeQuoteFunction(get: YahooGet) {
       "vgi.doc_md":
         "## quote\n\n" +
         "Current-price snapshot for a comma-separated list of tickers, one row per symbol. Backed " +
-        "by Yahoo's keyless chart-metadata plane, so `change`/`change_percent` are derived from the " +
-        "previous close and market cap is not available.\n\n" +
-        "```sql\nSELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT');\n```",
-      "vgi.result_columns_md":
-        "| Column | Type | Meaning |\n" +
-        "| --- | --- | --- |\n" +
-        "| `symbol` | VARCHAR | The ticker. |\n" +
-        "| `short_name` / `long_name` | VARCHAR | Display names. |\n" +
-        "| `currency` | VARCHAR | Quote currency. |\n" +
-        "| `exchange` | VARCHAR | Listing exchange. |\n" +
-        "| `quote_type` | VARCHAR | Instrument type (EQUITY, ETF, …). |\n" +
-        "| `regular_market_price` | DOUBLE | Last regular-session price. |\n" +
-        "| `regular_market_change` / `_percent` | DOUBLE | Change vs previous close (absolute / %). |\n" +
-        "| `regular_market_volume` | BIGINT | Session volume. |\n" +
-        "| `regular_market_day_high` / `_low` | DOUBLE | Session high / low. |\n" +
-        "| `regular_market_previous_close` | DOUBLE | Prior session close. |\n" +
-        "| `fifty_two_week_high` / `_low` | DOUBLE | 52-week high / low. |\n" +
-        "| `regular_market_time` | TIMESTAMP (UTC) | Time of the last price. |",
+        "by Yahoo's keyless chart-metadata plane, so `regular_market_change` and " +
+        "`regular_market_change_percent` are derived from the previous close, and market cap is not " +
+        "available. An unresolvable ticker is dropped rather than failing the batch. See the example " +
+        "queries for ready-to-run calls.",
+      "vgi.result_columns_schema": JSON.stringify([
+        { name: "symbol", type: "VARCHAR", description: "The ticker the row describes." },
+        { name: "short_name", type: "VARCHAR", description: "Short display name (e.g. 'Apple Inc.')." },
+        { name: "long_name", type: "VARCHAR", description: "Full/long display name, when Yahoo provides one." },
+        { name: "currency", type: "VARCHAR", description: "ISO currency the price is quoted in (e.g. 'USD')." },
+        { name: "exchange", type: "VARCHAR", description: "Listing exchange code (e.g. 'NMS')." },
+        { name: "quote_type", type: "VARCHAR", description: "Instrument type: EQUITY, ETF, INDEX, CRYPTOCURRENCY, …" },
+        { name: "regular_market_price", type: "DOUBLE", description: "Last regular-session price." },
+        {
+          name: "regular_market_change",
+          type: "DOUBLE",
+          description: "Absolute price change versus the previous close.",
+        },
+        {
+          name: "regular_market_change_percent",
+          type: "DOUBLE",
+          description: "Percentage price change versus the previous close.",
+        },
+        { name: "regular_market_volume", type: "BIGINT", description: "Regular-session traded volume." },
+        { name: "regular_market_day_high", type: "DOUBLE", description: "Highest price in the current session." },
+        { name: "regular_market_day_low", type: "DOUBLE", description: "Lowest price in the current session." },
+        {
+          name: "regular_market_previous_close",
+          type: "DOUBLE",
+          description: "Prior regular-session closing price.",
+        },
+        { name: "fifty_two_week_high", type: "DOUBLE", description: "Highest price over the trailing 52 weeks." },
+        { name: "fifty_two_week_low", type: "DOUBLE", description: "Lowest price over the trailing 52 weeks." },
+        {
+          name: "regular_market_time",
+          type: "TIMESTAMP WITH TIME ZONE",
+          description: "Time of the last regular-session price, in UTC.",
+        },
+      ]),
     },
   });
 }
@@ -273,17 +301,18 @@ export function makeSearchFunction(get: YahooGet) {
       "vgi.doc_md":
         "## search\n\n" +
         "Ticker lookup over Yahoo's search endpoint. Returns up to `count` candidate symbols " +
-        "(news results are dropped), ranked by Yahoo's relevance score.\n\n" +
-        "```sql\nSELECT symbol, long_name FROM yfinance.main.search('microsoft');\n```",
-      "vgi.result_columns_md":
-        "| Column | Type | Meaning |\n" +
-        "| --- | --- | --- |\n" +
-        "| `symbol` | VARCHAR | The ticker to use with `history`/`quote`. |\n" +
-        "| `short_name` / `long_name` | VARCHAR | Instrument names. |\n" +
-        "| `exchange` | VARCHAR | Listing exchange (display name). |\n" +
-        "| `quote_type` | VARCHAR | Instrument type code (EQUITY, ETF, INDEX, …). |\n" +
-        "| `type_disp` | VARCHAR | Human-friendly instrument type. |\n" +
-        "| `score` | DOUBLE | Yahoo relevance score (higher = better match). |",
+        "(news results are dropped), ranked by Yahoo's relevance score, best matches first. Take the " +
+        "resulting `symbol` and feed it into `history` or `quote`. See the example queries for " +
+        "ready-to-run calls.",
+      "vgi.result_columns_schema": JSON.stringify([
+        { name: "symbol", type: "VARCHAR", description: "The candidate ticker to use with history/quote." },
+        { name: "short_name", type: "VARCHAR", description: "Short instrument name." },
+        { name: "long_name", type: "VARCHAR", description: "Full instrument name, when available." },
+        { name: "exchange", type: "VARCHAR", description: "Listing exchange display name (e.g. 'NASDAQ')." },
+        { name: "quote_type", type: "VARCHAR", description: "Instrument type code: EQUITY, ETF, INDEX, …" },
+        { name: "type_disp", type: "VARCHAR", description: "Human-friendly instrument type label." },
+        { name: "score", type: "DOUBLE", description: "Yahoo relevance score; higher means a better match." },
+      ]),
     },
   });
 }

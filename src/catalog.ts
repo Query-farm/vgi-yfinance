@@ -8,7 +8,7 @@
 // executable_examples/agent_test_tasks) are JSON strings; all example SQL is
 // catalog-qualified (yfinance.main.<fn>) so it binds/runs when the catalog is attached.
 
-import type { CatalogDescriptor, VgiFunction } from "@query-farm/vgi";
+import type { CatalogDescriptor, VgiFunction, ViewDescriptor } from "@query-farm/vgi";
 
 const REPO = "https://github.com/Query-farm/vgi-yfinance";
 const ISSUES = `${REPO}/issues`;
@@ -91,6 +91,15 @@ const CATALOG_TAGS: Record<string, string> = {
       success_criteria:
         "The answer reports a plausible recent AAPL daily closing price obtained from the history function.",
     },
+    {
+      name: "class_share_symbol_format",
+      prompt:
+        "Yahoo Finance writes class shares (like Berkshire Hathaway's Class B) with a special symbol format. Which ticker in this catalog's symbol reference illustrates that convention?",
+      check_sql:
+        "SELECT count(*) > 0 FROM yfinance.main.symbol_reference WHERE symbol = 'BRK-B' AND asset_type = 'EQUITY'",
+      success_criteria:
+        "The answer identifies BRK-B (Berkshire Hathaway Class B) as the hyphenated class-share example, found in the symbol_reference view.",
+    },
   ]),
 };
 
@@ -139,6 +148,78 @@ const SCHEMA_TAGS: Record<string, string> = {
   ]),
 };
 
+// A browsable, credential-free entry point (VGI146): the three table functions all take a
+// symbol argument, so an agent has nothing to look at until it already knows a valid ticker.
+// This curated registry demonstrates every Yahoo symbol convention the functions accept
+// (plain equity, hyphenated class share, ETF, caret-prefixed index, crypto/FX pair). Its
+// definition is a self-contained VALUES relation evaluated entirely by DuckDB — no worker
+// call, no network, no secret — so `SELECT ... FROM yfinance.main.symbol_reference` always
+// answers instantly.
+const SYMBOL_REFERENCE_VIEW: ViewDescriptor = {
+  name: "symbol_reference",
+  definition:
+    "SELECT symbol, name, asset_type, exchange, notes FROM (VALUES " +
+    "('AAPL', 'Apple Inc.', 'EQUITY', 'NasdaqGS', 'Plain US common-stock ticker'), " +
+    "('MSFT', 'Microsoft Corporation', 'EQUITY', 'NasdaqGS', 'Plain US common-stock ticker'), " +
+    "('BRK-B', 'Berkshire Hathaway Inc. Class B', 'EQUITY', 'NYSE', 'Class share — the class suffix is written with a hyphen'), " +
+    "('SPY', 'SPDR S&P 500 ETF Trust', 'ETF', 'NYSEArca', 'Exchange-traded fund'), " +
+    "('VOO', 'Vanguard S&P 500 ETF', 'ETF', 'NYSEArca', 'Exchange-traded fund'), " +
+    "('^GSPC', 'S&P 500 Index', 'INDEX', 'SNP', 'Market index — written with a caret prefix'), " +
+    "('BTC-USD', 'Bitcoin USD', 'CRYPTOCURRENCY', 'CCC', 'Crypto pair — base and quote joined with a hyphen'), " +
+    "('EURUSD=X', 'EUR/USD', 'CURRENCY', 'CCY', 'FX pair — written with an =X suffix')" +
+    ") AS t(symbol, name, asset_type, exchange, notes)",
+  comment:
+    "A curated, credential-free registry of well-known tickers that demonstrates each Yahoo symbol " +
+    "convention accepted by history, quote, and search. Browsable without any network call.",
+  columnComments: {
+    symbol: "The ticker exactly as Yahoo lists it — feed this into history, quote, or search.",
+    name: "The human-readable instrument name.",
+    asset_type: "The instrument class: EQUITY, ETF, INDEX, CRYPTOCURRENCY, or CURRENCY.",
+    exchange: "The listing exchange (or pricing source) code.",
+    notes: "Which symbol-format convention this row illustrates.",
+  },
+  tags: {
+    "vgi.title": "Ticker Symbol Registry",
+    "vgi.category": "reference",
+    domain: "finance",
+    "vgi.doc_llm":
+      "A static, credential-free registry of well-known tickers, one row per symbol, giving its name, " +
+      "asset type (EQUITY, ETF, INDEX, CRYPTOCURRENCY, CURRENCY), listing exchange, and the Yahoo " +
+      "symbol-format convention it illustrates (plain equity, hyphenated class share like BRK-B, " +
+      "caret-prefixed index like ^GSPC, crypto pair like BTC-USD, FX pair like EURUSD=X). Browse it to " +
+      "learn valid symbol formats, then pass a symbol into history, quote, or search. It answers with no " +
+      "network call, so it is the safe first thing to query.",
+    "vgi.doc_md":
+      "## symbol_reference\n\n" +
+      "A browsable, credential-free registry of well-known tickers. One row per symbol, naming the " +
+      "instrument, its asset type, its listing exchange, and the Yahoo symbol-format convention it " +
+      "illustrates. It resolves entirely inside DuckDB — no network, no key — so it is the safe first " +
+      "thing to look at. Once you have a `symbol`, pass it into `history`, `quote`, or `search`.",
+    "vgi.keywords": JSON.stringify([
+      "symbols",
+      "tickers",
+      "reference",
+      "registry",
+      "symbol format",
+      "conventions",
+      "equity",
+      "ETF",
+      "index",
+      "crypto",
+    ]),
+    "vgi.example_queries": JSON.stringify([
+      {
+        description: "List the reference tickers for a given asset type",
+        sql: "SELECT symbol, name, exchange FROM yfinance.main.symbol_reference WHERE asset_type = 'ETF' ORDER BY symbol",
+      },
+      {
+        description: "Count the reference symbols grouped by asset type",
+        sql: "SELECT asset_type, count(*) AS n FROM yfinance.main.symbol_reference GROUP BY asset_type ORDER BY n DESC",
+      },
+    ]),
+  },
+};
+
 export function makeCatalog(functions: VgiFunction[]): CatalogDescriptor {
   return {
     name: "yfinance",
@@ -153,6 +234,7 @@ export function makeCatalog(functions: VgiFunction[]): CatalogDescriptor {
         name: "main",
         comment: "Yahoo Finance market data: price history, current quotes, and symbol search.",
         tags: SCHEMA_TAGS,
+        views: [SYMBOL_REFERENCE_VIEW],
         functions,
       },
     ],
