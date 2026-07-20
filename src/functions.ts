@@ -38,6 +38,25 @@ interface HistoryFnArgs {
   end_date: string;
 }
 
+// Illustrative examples for `history`, shared by the native `examples` field (surfaced
+// to DuckDB's `duckdb_functions().examples` column, SQL-only) and the `vgi.example_queries`
+// tag (which also carries the per-example descriptions VGI515 checks). Keeping one source
+// keeps the two carriers' SQL byte-identical so the linter dedupes them to a single entry.
+const HISTORY_EXAMPLES = [
+  {
+    sql: "SELECT timestamp, close, volume FROM yfinance.main.history('AAPL', range := '1mo') ORDER BY timestamp DESC LIMIT 5",
+    description: "The five most recent daily closes and volumes for Apple",
+  },
+  {
+    sql: "SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk')",
+    description: "One year of weekly closes for Microsoft",
+  },
+  {
+    sql: "SELECT max(high) AS high_52w, min(low) AS low_52w FROM yfinance.main.history('SPY', range := '1y')",
+    description: "The 52-week high and low for SPY, aggregated from daily candles",
+  },
+];
+
 export function makeHistoryFunction(get: YahooGet) {
   const schema = historySchema();
   return defineTableFunction<HistoryFnArgs, DoneState>({
@@ -99,22 +118,10 @@ export function makeHistoryFunction(get: YahooGet) {
       out.emit(historyBatch(schema, rows));
       state.done = true;
     },
-    examples: [
-      {
-        sql: "SELECT timestamp, close, volume FROM yfinance.main.history('AAPL', range := '1mo') ORDER BY timestamp DESC LIMIT 5",
-        description: "The five most recent daily closes and volumes for Apple",
-      },
-      {
-        sql: "SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk')",
-        description: "One year of weekly closes for Microsoft",
-      },
-      {
-        sql: "SELECT max(high) AS high_52w, min(low) AS low_52w FROM yfinance.main.history('SPY', range := '1y')",
-        description: "The 52-week high and low for SPY, aggregated from daily candles",
-      },
-    ],
+    examples: HISTORY_EXAMPLES,
     tags: {
       "vgi.category": "market-data",
+      "vgi.example_queries": JSON.stringify(HISTORY_EXAMPLES),
       "vgi.doc_llm":
         "Daily or intraday OHLCV candles for a single ticker over a chosen window. Use it for " +
         "price history, charting, returns, and technical analysis. Pick a named range (range := " +
@@ -126,8 +133,9 @@ export function makeHistoryFunction(get: YahooGet) {
         "(e.g. `'6mo'`, `'1y'`, `'max'`) plus a `bar` candle width (`'1d'`, `'1wk'`, `'1mo'`, or an " +
         "intraday width like `'5m'` on recent ranges), or pass an explicit `start_date`/`end_date` " +
         "pair to override `range`. Emits one row per candle, ordered oldest-first; thin or halted " +
-        "candles come back with NULL price cells rather than failing the scan. See the example " +
-        "queries for ready-to-run calls.",
+        "candles come back with NULL price cells rather than failing the scan. Intraday bars are " +
+        "only retained by Yahoo for recent windows, so an intraday `bar` on a long `range` yields " +
+        "fewer rows than the range implies. `adjclose` falls back to `close` when Yahoo omits it.",
       "vgi.result_columns_schema": JSON.stringify([
         { name: "symbol", type: "VARCHAR", description: "The ticker, echoed from Yahoo's chart metadata." },
         { name: "timestamp", type: "TIMESTAMP WITH TIME ZONE", description: "Candle open time, in UTC." },
@@ -151,6 +159,18 @@ export function makeHistoryFunction(get: YahooGet) {
 interface QuoteArgs {
   symbols: string;
 }
+
+// Shared by the native `examples` field and the `vgi.example_queries` tag — see HISTORY_EXAMPLES.
+const QUOTE_EXAMPLES = [
+  {
+    sql: "SELECT symbol, regular_market_price, regular_market_change_percent FROM yfinance.main.quote('AAPL')",
+    description: "Snapshot quote for Apple",
+  },
+  {
+    sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')",
+    description: "Latest price for several symbols at once",
+  },
+];
 
 export function makeQuoteFunction(get: YahooGet) {
   const schema = quoteSchema();
@@ -183,18 +203,10 @@ export function makeQuoteFunction(get: YahooGet) {
       out.emit(quoteBatch(schema, rows));
       state.done = true;
     },
-    examples: [
-      {
-        sql: "SELECT symbol, regular_market_price, regular_market_change_percent FROM yfinance.main.quote('AAPL')",
-        description: "Snapshot quote for Apple",
-      },
-      {
-        sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')",
-        description: "Latest price for several symbols at once",
-      },
-    ],
+    examples: QUOTE_EXAMPLES,
     tags: {
       "vgi.category": "market-data",
+      "vgi.example_queries": JSON.stringify(QUOTE_EXAMPLES),
       "vgi.doc_llm":
         "A current market snapshot for one or more tickers: last price, change vs the previous " +
         "close, day high/low, 52-week high/low, and volume. Keyless — one lightweight request per " +
@@ -204,8 +216,9 @@ export function makeQuoteFunction(get: YahooGet) {
         "Current-price snapshot for a comma-separated list of tickers, one row per symbol. Backed " +
         "by Yahoo's keyless chart-metadata plane, so `regular_market_change` and " +
         "`regular_market_change_percent` are derived from the previous close, and market cap is not " +
-        "available. An unresolvable ticker is dropped rather than failing the batch. See the example " +
-        "queries for ready-to-run calls.",
+        "available. An unresolvable ticker is dropped rather than failing the batch, so the result " +
+        "may have fewer rows than symbols requested. Each symbol is fetched with its own lightweight " +
+        "request, in parallel, so a long watchlist stays responsive.",
       "vgi.result_columns_schema": JSON.stringify([
         { name: "symbol", type: "VARCHAR", description: "The ticker the row describes." },
         { name: "short_name", type: "VARCHAR", description: "Short display name (e.g. 'Apple Inc.')." },
@@ -251,6 +264,18 @@ interface SearchArgs {
   count: number;
 }
 
+// Shared by the native `examples` field and the `vgi.example_queries` tag — see HISTORY_EXAMPLES.
+const SEARCH_EXAMPLES = [
+  {
+    sql: "SELECT symbol, short_name, exchange FROM yfinance.main.search('apple')",
+    description: "Find symbols matching 'apple'",
+  },
+  {
+    sql: "SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20)",
+    description: "Up to 20 candidate symbols for a query",
+  },
+];
+
 export function makeSearchFunction(get: YahooGet) {
   const schema = searchSchema();
   return defineTableFunction<SearchArgs, DoneState>({
@@ -282,18 +307,10 @@ export function makeSearchFunction(get: YahooGet) {
       out.emit(searchBatch(schema, rows));
       state.done = true;
     },
-    examples: [
-      {
-        sql: "SELECT symbol, short_name, exchange FROM yfinance.main.search('apple')",
-        description: "Find symbols matching 'apple'",
-      },
-      {
-        sql: "SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20)",
-        description: "Up to 20 candidate symbols for a query",
-      },
-    ],
+    examples: SEARCH_EXAMPLES,
     tags: {
       "vgi.category": "reference",
+      "vgi.example_queries": JSON.stringify(SEARCH_EXAMPLES),
       "vgi.doc_llm":
         "Resolve a company name or partial symbol to candidate ticker symbols, best matches first. " +
         "Use it when you only know a name — take the resulting `symbol` and pass it to `history` or " +
@@ -302,8 +319,8 @@ export function makeSearchFunction(get: YahooGet) {
         "## search\n\n" +
         "Ticker lookup over Yahoo's search endpoint. Returns up to `count` candidate symbols " +
         "(news results are dropped), ranked by Yahoo's relevance score, best matches first. Take the " +
-        "resulting `symbol` and feed it into `history` or `quote`. See the example queries for " +
-        "ready-to-run calls.",
+        "resulting `symbol` and feed it into `history` or `quote`. The `count` argument caps how many " +
+        "candidates come back and is clamped to 1..50 (default 8).",
       "vgi.result_columns_schema": JSON.stringify([
         { name: "symbol", type: "VARCHAR", description: "The candidate ticker to use with history/quote." },
         { name: "short_name", type: "VARCHAR", description: "Short instrument name." },
