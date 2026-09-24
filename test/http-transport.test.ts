@@ -21,11 +21,12 @@
 // for an egress connector. Schema columns are deterministic; only row-count is live.
 
 import { test, expect, beforeAll, afterAll } from "bun:test";
-import { createVgiFetch } from "@query-farm/vgi/worker-cf";
+import { batchFromColumns, createVgiFetch, field, schema, utf8 } from "@query-farm/vgi/worker-cf";
 import { FunctionRegistry, ReadOnlyCatalogInterface, VgiClient, Arguments } from "@query-farm/vgi";
 import { httpConnect } from "@query-farm/vgi-rpc";
 import { makeHistoryFunction, makeQuoteFunction, makeSearchFunction } from "../src/functions.js";
 import { makeCatalog } from "../src/catalog.js";
+import pkg from "../package.json" with { type: "json" };
 
 // A fake Yahoo getter would make the scan deterministic, but the point here is the
 // TRANSPORT, and the parse/mapping is already covered SDK-free in yahoo.test.ts. Use
@@ -51,6 +52,10 @@ beforeAll(() => {
     protocol: { registry, catalogInterface },
     signingKey: SIGNING_KEY,
     prefix: PREFIX,
+    // Required since vgi 0.29: the worker's identity for the landing surface at
+    // `GET {prefix}/`. Irrelevant to the RPC paths this test drives, but the type
+    // demands it precisely so a real deployment can't silently ship without one.
+    landingInfo: { name: "yfinance", doc: "Yahoo Finance market data", version: pkg.version },
   });
 
   server = Bun.serve({ port: 0, fetch });
@@ -89,29 +94,36 @@ test("the three table functions are exposed over HTTP", async () => {
   }
 });
 
-test("history bind → init → scan round-trips over HTTP (live)", async () => {
+// `history` is a blended row-transform function: its positional `symbol` is a per-row
+// INPUT column, so a client drives it table-in-out style with an input batch — exactly
+// what DuckDB ships for `LATERAL history(t.sym)`. Two rows exercise the 1->N fan-out.
+test("history bind → init → exchange round-trips over HTTP (live)", async () => {
   const rpc = httpConnect(baseUrl, { prefix: PREFIX });
   try {
     const client = new VgiClient(rpc);
     const attach = await client.catalogAttach("yfinance");
+    const input = batchFromColumns({ symbol: ["AAPL", "MSFT"] }, schema([field("symbol", utf8(), true)]));
 
     const rows: Record<string, any>[] = [];
-    for await (const batch of client.tableFunctionRows({
+    for await (const batch of client.tableInOutFunctionRows({
       functionName: "history",
-      arguments: new Arguments(["AAPL"], new Map([["range", "5d"]])),
+      input: [input],
+      arguments: new Arguments([], new Map([["range", "5d"]])),
       attachOpaqueData: attach.attach_opaque_data,
+      // A row-transform function has no FINALIZE stage and rejects one; DuckDB never
+      // sends it, and neither must the client (the default is to send it).
+      hasFinalize: false,
     })) {
       rows.push(...batch);
     }
 
-    // Live: that we got at least one candle back.
-    expect(rows.length).toBeGreaterThan(0);
+    // Live: candles came back for both input rows.
+    expect(new Set(rows.map((r) => r.symbol))).toEqual(new Set(["AAPL", "MSFT"]));
     const first = rows[0]!;
     // Deterministic: the typed schema round-tripped intact over HTTP.
     expect(Object.keys(first).sort()).toEqual(
       ["adjclose", "close", "high", "low", "open", "symbol", "timestamp", "volume"].sort(),
     );
-    expect(first.symbol).toBe("AAPL");
     expect(typeof first.close).toBe("number");
   } finally {
     rpc.close();

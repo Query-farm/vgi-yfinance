@@ -226,22 +226,54 @@ export function parseQuoteMeta(json: unknown, symbol: string): QuoteRow | null {
  * One keyless chart request per symbol, in parallel. A symbol that errors or returns no
  * meta is dropped (not a null row) so one bad ticker never fails the whole scan.
  */
+/** Max Yahoo requests in flight per call. A LATERAL hands a function a whole input chunk
+ *  (up to 2048 rows) at once; unbounded fan-out would trip Yahoo's rate limit and the
+ *  Cloudflare Worker's per-request subrequest budget. */
+export const MAX_CONCURRENCY = 8;
+
+/** `Promise.all(items.map(fn))`, but with at most `limit` calls in flight. Order-preserving. */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
+/** One quote per requested symbol, keyed by that symbol. A symbol whose request throws
+ *  (unknown ticker, HTTP error) is absent from the map rather than failing the call. */
+export async function fetchQuoteMap(
+  get: (url: string) => Promise<unknown>,
+  symbols: string[],
+  host: string = YF_HOST,
+): Promise<Map<string, QuoteRow>> {
+  const rows = await mapLimit(symbols, MAX_CONCURRENCY, async (s) => {
+    try {
+      return parseQuoteMeta(await get(quoteUrl(s, host)), s);
+    } catch {
+      return null;
+    }
+  });
+  const bySymbol = new Map<string, QuoteRow>();
+  symbols.forEach((s, i) => {
+    const r = rows[i];
+    if (r) bySymbol.set(s, r);
+  });
+  return bySymbol;
+}
+
 export async function fetchQuote(
   get: (url: string) => Promise<unknown>,
   symbols: string[],
   host: string = YF_HOST,
 ): Promise<QuoteRow[]> {
-  if (symbols.length === 0) return [];
-  const rows = await Promise.all(
-    symbols.map(async (s) => {
-      try {
-        return parseQuoteMeta(await get(quoteUrl(s, host)), s);
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return rows.filter((r): r is QuoteRow => r !== null);
+  const bySymbol = await fetchQuoteMap(get, symbols, host);
+  return symbols.flatMap((s) => bySymbol.get(s) ?? []);
 }
 
 // ── search (v1 search) ──────────────────────────────────────────────────────

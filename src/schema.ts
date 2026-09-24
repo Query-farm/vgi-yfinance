@@ -4,33 +4,49 @@
 // emit real typed columns (not a single JSON string): Float64 prices, Int64 volume,
 // Timestamp[s,UTC] instants. Timestamp canonical unit is a raw bigint of the type's unit
 // (here epoch SECONDS), so timestamp columns carry `bigint` cells; Int64 likewise.
+//
+// Types come from vgi's backend-agnostic factories on the `worker-cf` entry, never from
+// `@query-farm/apache-arrow`: under workerd (Cloudflare) vgi swaps in the flechette Arrow
+// backend, so apache-arrow objects wouldn't match; on Bun the same factories build
+// arrow-js types. The package root is avoided too — it re-exports the Node-only stdio
+// `Worker`, which breaks the Cloudflare bundle.
 
-import { Schema, Field, Utf8, Float64, Int64, Timestamp, TimeUnit } from "@query-farm/apache-arrow";
-import { batchFromColumns } from "@query-farm/vgi";
+import {
+  batchFromColumns,
+  field,
+  float64,
+  int64,
+  schema,
+  timestamp,
+  TimeUnit,
+  utf8,
+  type VgiDataType,
+  type VgiSchema,
+} from "@query-farm/vgi/worker-cf";
 import type { HistoryRow, QuoteRow, SearchRow } from "./yahoo.js";
 
-const f = (name: string, type: ConstructorParameters<typeof Field>[1]) => new Field(name, type, true);
-const tsSec = () => new Timestamp(TimeUnit.SECOND, "UTC");
+const f = (name: string, type: VgiDataType) => field(name, type, true);
+const tsSec = () => timestamp(TimeUnit.SECOND, "UTC");
 
 /** bigint | null for an Int64/Timestamp cell from a JS number that may be null. */
 const bigOrNull = (v: number | null): bigint | null => (v == null ? null : BigInt(Math.trunc(v)));
 
 // ── history ─────────────────────────────────────────────────────────────────
 
-export function historySchema(): Schema {
-  return new Schema([
-    f("symbol", new Utf8()),
+export function historySchema(): VgiSchema {
+  return schema([
+    f("symbol", utf8()),
     f("timestamp", tsSec()),
-    f("open", new Float64()),
-    f("high", new Float64()),
-    f("low", new Float64()),
-    f("close", new Float64()),
-    f("adjclose", new Float64()),
-    f("volume", new Int64()),
+    f("open", float64()),
+    f("high", float64()),
+    f("low", float64()),
+    f("close", float64()),
+    f("adjclose", float64()),
+    f("volume", int64()),
   ]);
 }
 
-export function historyBatch(schema: Schema, rows: HistoryRow[]) {
+export function historyBatch(schema: VgiSchema, rows: HistoryRow[]) {
   return batchFromColumns(
     {
       symbol: rows.map((r) => r.symbol),
@@ -48,28 +64,28 @@ export function historyBatch(schema: Schema, rows: HistoryRow[]) {
 
 // ── quote ─────────────────────────────────────────────────────────────────
 
-export function quoteSchema(): Schema {
-  return new Schema([
-    f("symbol", new Utf8()),
-    f("short_name", new Utf8()),
-    f("long_name", new Utf8()),
-    f("currency", new Utf8()),
-    f("exchange", new Utf8()),
-    f("quote_type", new Utf8()),
-    f("regular_market_price", new Float64()),
-    f("regular_market_change", new Float64()),
-    f("regular_market_change_percent", new Float64()),
-    f("regular_market_volume", new Int64()),
-    f("regular_market_day_high", new Float64()),
-    f("regular_market_day_low", new Float64()),
-    f("regular_market_previous_close", new Float64()),
-    f("fifty_two_week_high", new Float64()),
-    f("fifty_two_week_low", new Float64()),
+export function quoteSchema(): VgiSchema {
+  return schema([
+    f("symbol", utf8()),
+    f("short_name", utf8()),
+    f("long_name", utf8()),
+    f("currency", utf8()),
+    f("exchange", utf8()),
+    f("quote_type", utf8()),
+    f("regular_market_price", float64()),
+    f("regular_market_change", float64()),
+    f("regular_market_change_percent", float64()),
+    f("regular_market_volume", int64()),
+    f("regular_market_day_high", float64()),
+    f("regular_market_day_low", float64()),
+    f("regular_market_previous_close", float64()),
+    f("fifty_two_week_high", float64()),
+    f("fifty_two_week_low", float64()),
     f("regular_market_time", tsSec()),
   ]);
 }
 
-export function quoteBatch(schema: Schema, rows: QuoteRow[]) {
+export function quoteBatch(schema: VgiSchema, rows: QuoteRow[]) {
   return batchFromColumns(
     {
       symbol: rows.map((r) => r.symbol),
@@ -95,19 +111,19 @@ export function quoteBatch(schema: Schema, rows: QuoteRow[]) {
 
 // ── search ─────────────────────────────────────────────────────────────────
 
-export function searchSchema(): Schema {
-  return new Schema([
-    f("symbol", new Utf8()),
-    f("short_name", new Utf8()),
-    f("long_name", new Utf8()),
-    f("exchange", new Utf8()),
-    f("quote_type", new Utf8()),
-    f("type_disp", new Utf8()),
-    f("score", new Float64()),
+export function searchSchema(): VgiSchema {
+  return schema([
+    f("symbol", utf8()),
+    f("short_name", utf8()),
+    f("long_name", utf8()),
+    f("exchange", utf8()),
+    f("quote_type", utf8()),
+    f("type_disp", utf8()),
+    f("score", float64()),
   ]);
 }
 
-export function searchBatch(schema: Schema, rows: SearchRow[]) {
+export function searchBatch(schema: VgiSchema, rows: SearchRow[]) {
   return batchFromColumns(
     {
       symbol: rows.map((r) => r.symbol),

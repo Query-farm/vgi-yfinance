@@ -4,6 +4,12 @@
 
 require-env VGI_TEST_WORKER
 
+# The HTTP transport (VGI_TEST_WORKER = a URL, e.g. the Cloudflare Worker) rides httpfs;
+# harmless for the stdio worker. An explicit LOAD, not `require httpfs`: the haybarn
+# runner's `require` only sees statically linked extensions and would skip the file.
+statement ok
+LOAD httpfs;
+
 statement ok
 ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
 
@@ -46,3 +52,21 @@ query I
 SELECT (count(*) FILTER (WHERE symbol = 'AAPL') > 0)::INT FROM yf.quote('AAPL,MSFT');
 ----
 1
+
+# --- LATERAL: `symbols` is a per-row input column (blended row-transform). ---
+
+# One quote per outer row, stamped onto the right outer row; a NULL row and an
+# unresolvable ticker contribute no rows; a duplicate outer row gets its own copy.
+query IT
+SELECT count(*), string_agg(t.note || '=' || q.symbol, ',' ORDER BY t.note)
+FROM (VALUES ('AAPL', 'a'), ('MSFT', 'm'), (NULL, 'n'), ('NOTAREALTICKERX', 'x'), ('AAPL', 'z')) t(sym, note),
+     LATERAL yf.quote(t.sym) q;
+----
+3	a=AAPL,m=MSFT,z=AAPL
+
+# A comma list in one outer row fans out to several rows for that row.
+query T
+SELECT string_agg(q.symbol, ',' ORDER BY q.symbol)
+FROM (VALUES ('AAPL,MSFT')) t(syms), LATERAL yf.quote(t.syms) q;
+----
+AAPL,MSFT

@@ -80,11 +80,16 @@ SELECT * FROM yf.history('MSFT', range := '1y', bar := '1wk');
 -- An explicit date range (overrides `range`):
 SELECT timestamp, close, volume
 FROM yf.history('SPY', start_date := '2024-01-01', end_date := '2024-12-31');
+
+-- Every ticker in a table, via LATERAL (the symbol may be a column):
+SELECT w.sym, max(h.close) AS high_close
+FROM watchlist w, LATERAL yf.history(w.sym, range := '1mo') h
+GROUP BY w.sym;
 ```
 
 | Arg | Default | Notes |
 | --- | --- | --- |
-| `symbol` | *(required)* | A single ticker, e.g. `AAPL`, `BTC-USD`, `^GSPC`. |
+| `symbol` | *(required)* | A single ticker, e.g. `AAPL`, `BTC-USD`, `^GSPC` — a literal or a column (`LATERAL`). A `NULL` yields no rows. |
 | `range` | `'1mo'` | `1d 5d 1mo 3mo 6mo 1y 2y 5y 10y ytd max`. Ignored when `start_date` is set. |
 | `bar` | `'1d'` | Candle width (Yahoo's `interval`): `1m 2m 5m 15m 30m 60m 90m 1h 1d 5d 1wk 1mo 3mo`. Named `bar`, not `interval`, because `INTERVAL` is a reserved SQL keyword. |
 | `prepost` | `false` | Include pre/post-market candles. |
@@ -99,10 +104,15 @@ cells, never a crash.
 ```sql
 SELECT symbol, regular_market_price, regular_market_change_percent
 FROM yf.quote('AAPL,MSFT,GOOG');
+
+-- One quote per row of a table, via LATERAL:
+SELECT w.sym, q.regular_market_price
+FROM watchlist w, LATERAL yf.quote(w.sym) q;
 ```
 
-`symbols` is a comma/space-separated list. One keyless chart request is made per symbol
-(in parallel); a bad ticker is dropped rather than failing the batch. Columns:
+`symbols` is a comma/space-separated list, as a literal or a column (`LATERAL`). One
+keyless chart request is made per distinct symbol (at most 8 in flight); a bad ticker is
+dropped rather than failing the batch. Columns:
 `symbol`, `short_name`, `long_name`, `currency`, `exchange`, `quote_type`,
 `regular_market_price`, `regular_market_change`, `regular_market_change_percent`,
 `regular_market_volume`, `regular_market_day_high`, `regular_market_day_low`,
@@ -116,10 +126,15 @@ FROM yf.quote('AAPL,MSFT,GOOG');
 ```sql
 SELECT symbol, long_name, exchange, quote_type
 FROM yf.search('vanguard', count := 20);
+
+-- The best-matching ticker for every company name in a table, via LATERAL:
+SELECT c.name, s.symbol
+FROM companies c, LATERAL yf.search(c.name, count := 1) s;
 ```
 
 Columns: `symbol`, `short_name`, `long_name`, `exchange`, `quote_type`, `type_disp`,
-`score`. `count` (default 8) is clamped to `[1, 50]`; news results are dropped.
+`score`. `query` may be a literal or a column (`LATERAL`); `count` (default 8, per query) is
+clamped to `[1, 50]`; news results are dropped.
 
 ## Development
 

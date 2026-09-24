@@ -6,6 +6,7 @@
 # Prerequisites (one-time):
 #   uv tool install haybarn-unittest                      # the DuckDB unittest binary
 #   echo "INSTALL vgi FROM community;" | uvx haybarn-cli  # install the vgi extension
+#   echo "INSTALL httpfs;" | uvx haybarn-cli               # HTTP transport (auto-installed below)
 #   bun install                                           # the worker's deps
 set -euo pipefail
 
@@ -24,10 +25,17 @@ if ! echo "LOAD vgi;" | uvx haybarn-cli >/dev/null 2>&1; then
     echo "==> Installing vgi extension from community repository"
     echo "INSTALL vgi FROM community;" | uvx haybarn-cli
 fi
+# httpfs carries the HTTP transport (VGI_TEST_WORKER = a URL); the .test files `LOAD` it.
+if ! echo "LOAD httpfs;" | uvx haybarn-cli >/dev/null 2>&1; then
+    echo "==> Installing httpfs extension"
+    echo "INSTALL httpfs;" | uvx haybarn-cli
+fi
 
 # NOTE: the last arg is a Catch2 test-name filter, not a shell glob. Catch2 only honors a
 # trailing `*` wildcard, so use `test/sql/*` (not `test/sql/*.test`).
-WORKER="$REPO_ROOT/bin/vgi-yfinance-worker"
+# VGI_TEST_WORKER overrides the ATTACH LOCATION — e.g. `wrangler dev`'s http://localhost:8787
+# or the deployed Cloudflare Worker URL — to run the same suite over HTTP.
+WORKER="${VGI_TEST_WORKER:-$REPO_ROOT/bin/vgi-yfinance-worker}"
 TEST_GLOB="${1:-test/sql/*}"
 
 echo "==> Running SQLLogic tests"

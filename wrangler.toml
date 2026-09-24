@@ -1,0 +1,7 @@
+name = "vgi-yfinance"
+main = "src/cf.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# VGI_SIGNING_KEY is a Wrangler secret (`bun run cf:secret`). It seals the per-request
+# state tokens; a stable value is required because Workers isolates don't share memory.

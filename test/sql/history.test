@@ -4,6 +4,12 @@
 
 require-env VGI_TEST_WORKER
 
+# The HTTP transport (VGI_TEST_WORKER = a URL, e.g. the Cloudflare Worker) rides httpfs;
+# harmless for the stdio worker. An explicit LOAD, not `require httpfs`: the haybarn
+# runner's `require` only sees statically linked extensions and would skip the file.
+statement ok
+LOAD httpfs;
+
 statement ok
 ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
 
@@ -57,3 +63,16 @@ query I
 SELECT (count(*) > 0)::INT FROM yf.history('SPY', start_date := '2024-01-01', end_date := '2024-03-01');
 ----
 1
+
+# --- LATERAL: `symbol` is a per-row input column (blended row-transform). ---
+
+# Candles for every outer row, each stamped onto the outer row that asked for it; named
+# args stay literals alongside the column arg; a NULL row contributes no rows.
+query TII
+SELECT t.sym, (count(*) > 0)::INT, bool_and(h.symbol = t.sym)::INT
+FROM (VALUES ('AAPL'), ('MSFT'), (NULL)) t(sym),
+     LATERAL yf.history(t.sym, range := '5d', bar := '1d') h
+GROUP BY t.sym ORDER BY t.sym;
+----
+AAPL	1	1
+MSFT	1	1

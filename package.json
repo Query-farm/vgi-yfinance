@@ -7,15 +7,19 @@
   "description": "VGI worker: Yahoo Finance market data (history / quote / search) as DuckDB tables",
   "scripts": {
     "test": "bun test",
-    "typecheck": "bash scripts/typecheck.sh"
+    "typecheck": "bash scripts/typecheck.sh",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy",
+    "cf:secret": "openssl rand -hex 32 | wrangler secret put VGI_SIGNING_KEY"
   },
   "dependencies": {
     "@query-farm/apache-arrow": "^21.1.1",
-    "@query-farm/vgi": "^0.19.0",
-    "@query-farm/vgi-rpc": "^0.14.0"
+    "@query-farm/vgi": "^0.36.2",
+    "@query-farm/vgi-rpc": "^0.25.4"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "typescript": "^7.0.2",
-    "@types/bun": "^1.3.14"
+    "wrangler": "^4.138.0"
   }
 }

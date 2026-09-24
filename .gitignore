@@ -6,3 +6,7 @@ dist/
 duckdb_unittest_tempdir/
 .vgi-review-cache.json
 .vgi-sim-cache.json
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+.dev.vars.*

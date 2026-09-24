@@ -1,11 +1,42 @@
-// The three VGI table functions: history, quote, search. All keyless, all single-shot
-// snapshots — state is just a `done` flag (fully serializable; no socket / batch / Date),
-// so the HTTP transport can round-trip it. The Yahoo `get` client is injected so worker.ts
-// wires the real crumb/cookie fetch and tests could wire a fake.
+// The three VGI table functions: history, quote, search. All keyless. The Yahoo `get`
+// client is injected so the entries wire the real fetch and tests could wire a fake.
+//
+// All three are **blended row-transform** functions
+// (`defineRowTransformFunction`): the positional arg is a per-row INPUT COLUMN, not a
+// bind-time scalar, so one registration serves every call shape —
+//
+//   history('AAPL')                                   -- literal -> 1 input row
+//   FROM watchlist w, LATERAL history(w.sym)          -- correlated LATERAL
+//
+// Named args (range, bar, …) stay bind-time scalars on `params.args` and must be
+// literals. Two rules the shape imposes: no finalize (DuckDB forbids FinalExecute under
+// correlated LATERAL), and since all three fan out 1->N, every emit carries
+// `parentRowsMetadata` naming the input row behind each output row — without it the
+// extension assumes 1->1 and stamps outer columns from the wrong row. A NULL/empty input
+// row yields no output rows (the LATERAL contract) rather than an error. There is no
+// per-call state, so nothing has to survive the HTTP transport's state token.
 
-import { defineTableFunction, ArgumentValidationError, type OutputCollector } from "@query-farm/vgi";
-import { Utf8, Int64, Bool } from "@query-farm/apache-arrow";
-import { fetchHistory, fetchQuote, fetchSearch, parseSymbols } from "./yahoo.js";
+// Imports come from the workerd-safe `worker-cf` entry (see schema.ts) so the same source
+// bundles for Cloudflare; the arg types use vgi's backend-agnostic factories.
+import {
+  bool,
+  defineRowTransformFunction,
+  int64,
+  parentRowsMetadata,
+  utf8,
+  type VgiBatch,
+} from "@query-farm/vgi/worker-cf";
+import {
+  fetchHistory,
+  fetchQuoteMap,
+  fetchSearch,
+  mapLimit,
+  MAX_CONCURRENCY,
+  parseSymbols,
+  type HistoryRow,
+  type QuoteRow,
+  type SearchRow,
+} from "./yahoo.js";
 import {
   historySchema,
   historyBatch,
@@ -18,8 +49,12 @@ import {
 /** The injected HTTP getter: URL in, parsed JSON out. */
 export type YahooGet = (url: string) => Promise<unknown>;
 
-interface DoneState {
-  done: boolean;
+/** The trimmed string in column `name` at `row`, or null when NULL/blank. */
+function cellString(batch: VgiBatch, name: string, row: number): string | null {
+  const v = batch.getChild(name)?.get(row);
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
 }
 
 // ── history ─────────────────────────────────────────────────────────────────
@@ -27,8 +62,8 @@ interface DoneState {
 // `bar` is the candle interval (a.k.a. Yahoo's `interval`). It is deliberately NOT named
 // `interval` because INTERVAL is a reserved SQL keyword in DuckDB — a bare `interval :=`
 // is a parser error, so users would have to write `"interval" :=`. `bar` needs no quoting.
+// Named (bind-time) args only — `symbol` is the per-row input column, read off the batch.
 interface HistoryFnArgs {
-  symbol: string;
   range: string;
   bar: string;
   prepost: boolean;
@@ -55,24 +90,29 @@ const HISTORY_EXAMPLES = [
     sql: "SELECT max(high) AS high_52w, min(low) AS low_52w FROM yfinance.main.history('SPY', range := '1y')",
     description: "The 52-week high and low for SPY, aggregated from daily candles",
   },
+  {
+    sql: "SELECT w.sym, max(h.close) AS high_close FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.history(w.sym, range := '1mo') h GROUP BY w.sym",
+    description: "Highest close over the last month for every ticker in a table, via LATERAL",
+  },
 ];
 
 export function makeHistoryFunction(get: YahooGet) {
   const schema = historySchema();
-  return defineTableFunction<HistoryFnArgs, DoneState>({
+  return defineRowTransformFunction<HistoryFnArgs>({
     name: "history",
     description:
       "Historical OHLCV candles for one symbol from Yahoo Finance (v8 chart API). " +
       "Pick a named window (range := '1y') plus a candle width (bar := '1wk'), or an " +
-      "explicit start_date/end_date range. Returns columns symbol, timestamp (UTC), open, " +
-      "high, low, close, adjclose, and volume.",
-    args: {
-      symbol: new Utf8(),
-      range: new Utf8(),
-      bar: new Utf8(),
-      prepost: new Bool(),
-      start_date: new Utf8(),
-      end_date: new Utf8(),
+      "explicit start_date/end_date range. The symbol may be a column, so LATERAL " +
+      "history(t.sym) fetches candles for every row. Returns columns symbol, timestamp (UTC), " +
+      "open, high, low, close, adjclose, and volume.",
+    args: { symbol: utf8() },
+    namedArgs: {
+      range: utf8(),
+      bar: utf8(),
+      prepost: bool(),
+      start_date: utf8(),
+      end_date: utf8(),
     },
     argDefaults: { range: "1mo", bar: "1d", prepost: false, start_date: "", end_date: "" },
     // Yahoo's fixed vocabularies — surfaced via vgi_function_arguments() so agents
@@ -85,7 +125,7 @@ export function makeHistoryFunction(get: YahooGet) {
     },
     argDocs: {
       symbol:
-        "The ticker to fetch, written the way Yahoo lists it — equities, class shares, crypto pairs, and caret-prefixed indices are all accepted. Required, and passed as the first positional argument (not symbol := ...).",
+        "The ticker to fetch, written the way Yahoo lists it — equities, class shares, crypto pairs, and caret-prefixed indices are all accepted. Passed as the first positional argument (not symbol := ...); a literal or a column (LATERAL history(t.sym)). A NULL or empty symbol yields no rows.",
       range:
         "Named lookback window over which to fetch candles. Ignored when start_date is set. Default '1mo'.",
       bar:
@@ -95,28 +135,35 @@ export function makeHistoryFunction(get: YahooGet) {
         "Inclusive start date 'YYYY-MM-DD'. When set, [start_date, end_date) overrides range. Empty = use range.",
       end_date: "Exclusive end date 'YYYY-MM-DD'. Defaults to now when start_date is set.",
     },
-    onBind: (p) => {
-      if (p.args.symbol == null || String(p.args.symbol).trim() === "") {
-        throw new ArgumentValidationError("history: symbol is required");
-      }
-      return { outputSchema: schema };
-    },
-    initialState: () => ({ done: false }),
-    process: async (p, state: DoneState, out: OutputCollector) => {
-      if (state.done) {
-        out.finish();
-        return;
-      }
-      const rows = await fetchHistory(get, {
-        symbol: String(p.args.symbol),
-        range: p.args.range || "1mo",
-        interval: p.args.bar || "1d",
-        prepost: Boolean(p.args.prepost),
-        start: p.args.start_date || "",
-        end: p.args.end_date || "",
+    onBind: () => ({ outputSchema: schema }),
+    process: async (p, batch, out) => {
+      const symbols: (string | null)[] = [];
+      for (let row = 0; row < batch.numRows; row++) symbols.push(cellString(batch, "symbol", row));
+
+      // One chart request per DISTINCT symbol in the chunk, bounded in flight. A Yahoo
+      // error (unknown ticker → HTTP 404) still fails the scan, as the literal form does.
+      const distinct = [...new Set(symbols.filter((s): s is string => s !== null))];
+      const fetched = await mapLimit(distinct, MAX_CONCURRENCY, (symbol) =>
+        fetchHistory(get, {
+          symbol,
+          range: p.args.range || "1mo",
+          interval: p.args.bar || "1d",
+          prepost: Boolean(p.args.prepost),
+          start: p.args.start_date || "",
+          end: p.args.end_date || "",
+        }),
+      );
+      const bySymbol = new Map(distinct.map((s, i) => [s, fetched[i]!]));
+
+      const rows: HistoryRow[] = [];
+      const parentRows: number[] = [];
+      symbols.forEach((s, row) => {
+        for (const r of (s && bySymbol.get(s)) || []) {
+          rows.push(r);
+          parentRows.push(row);
+        }
       });
-      out.emit(historyBatch(schema, rows));
-      state.done = true;
+      out.emit(historyBatch(schema, rows), parentRowsMetadata(parentRows, rows.length));
     },
     examples: HISTORY_EXAMPLES,
     tags: {
@@ -156,9 +203,8 @@ export function makeHistoryFunction(get: YahooGet) {
 
 // ── quote ─────────────────────────────────────────────────────────────────
 
-interface QuoteArgs {
-  symbols: string;
-}
+// No named args — `symbols` is the per-row input column.
+type QuoteArgs = Record<string, never>;
 
 // Shared by the native `examples` field and the `vgi.example_queries` tag — see HISTORY_EXAMPLES.
 const QUOTE_EXAMPLES = [
@@ -170,38 +216,48 @@ const QUOTE_EXAMPLES = [
     sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')",
     description: "Latest price for several symbols at once",
   },
+  {
+    sql: "SELECT w.sym, q.regular_market_price FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.quote(w.sym) q",
+    description: "Latest price for every ticker in a table, via LATERAL",
+  },
 ];
 
 export function makeQuoteFunction(get: YahooGet) {
   const schema = quoteSchema();
-  return defineTableFunction<QuoteArgs, DoneState>({
+  return defineRowTransformFunction<QuoteArgs>({
     name: "quote",
     description:
       "Current market snapshot for one or more symbols (keyless, from the chart meta plane): " +
       "price, change vs previous close, day range, 52-week range, volume. Pass a " +
-      "comma-separated symbol list.",
-    args: { symbols: new Utf8() },
+      "comma-separated symbol list, or a column (LATERAL quote(t.sym)) for one quote per row.",
+    args: { symbols: utf8() },
     argDocs: {
       symbols:
         "One ticker or a comma/space-separated list (e.g. 'AAPL' or 'AAPL,MSFT,GOOG'). One request " +
-        "is made per symbol; an unresolvable ticker is dropped rather than failing the batch. " +
-        "Required, and passed as the first positional argument (not symbols := ...).",
+        "is made per distinct symbol; an unresolvable ticker is dropped rather than failing the batch. " +
+        "Passed as the first positional argument (not symbols := ...); a literal or a column " +
+        "(LATERAL quote(t.sym)). A NULL or empty value yields no rows.",
     },
-    onBind: (p) => {
-      if (p.args.symbols == null || String(p.args.symbols).trim() === "") {
-        throw new ArgumentValidationError("quote: symbols is required (comma-separated list)");
+    onBind: () => ({ outputSchema: schema }),
+    process: async (_p, batch, out) => {
+      const perRow: string[][] = [];
+      for (let row = 0; row < batch.numRows; row++) {
+        const cell = cellString(batch, "symbols", row);
+        perRow.push(cell ? parseSymbols(cell) : []);
       }
-      return { outputSchema: schema };
-    },
-    initialState: () => ({ done: false }),
-    process: async (p, state: DoneState, out: OutputCollector) => {
-      if (state.done) {
-        out.finish();
-        return;
-      }
-      const rows = await fetchQuote(get, parseSymbols(String(p.args.symbols)));
-      out.emit(quoteBatch(schema, rows));
-      state.done = true;
+      const bySymbol = await fetchQuoteMap(get, [...new Set(perRow.flat())]);
+
+      const rows: QuoteRow[] = [];
+      const parentRows: number[] = [];
+      perRow.forEach((symbols, row) => {
+        for (const s of symbols) {
+          const q = bySymbol.get(s);
+          if (!q) continue;
+          rows.push(q);
+          parentRows.push(row);
+        }
+      });
+      out.emit(quoteBatch(schema, rows), parentRowsMetadata(parentRows, rows.length));
     },
     examples: QUOTE_EXAMPLES,
     tags: {
@@ -259,8 +315,8 @@ export function makeQuoteFunction(get: YahooGet) {
 
 // ── search ─────────────────────────────────────────────────────────────────
 
+// Named (bind-time) args only — `query` is the per-row input column.
 interface SearchArgs {
-  query: string;
   count: number;
 }
 
@@ -274,38 +330,49 @@ const SEARCH_EXAMPLES = [
     sql: "SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20)",
     description: "Up to 20 candidate symbols for a query",
   },
+  {
+    sql: "SELECT c.name, s.symbol FROM (VALUES ('apple'), ('microsoft')) c(name), LATERAL yfinance.main.search(c.name, count := 1) s",
+    description: "Best-matching ticker for every company name in a table, via LATERAL",
+  },
 ];
 
 export function makeSearchFunction(get: YahooGet) {
   const schema = searchSchema();
-  return defineTableFunction<SearchArgs, DoneState>({
+  return defineRowTransformFunction<SearchArgs>({
     name: "search",
     description:
       "Look up ticker symbols by name or partial symbol (v1 search API). Returns candidate " +
-      "symbols with exchange and instrument type, best matches first.",
-    args: { query: new Utf8(), count: new Int64() },
+      "symbols with exchange and instrument type, best matches first. The query may be a " +
+      "column, so LATERAL search(t.name) resolves every row.",
+    args: { query: utf8() },
+    namedArgs: { count: int64() },
     argDefaults: { count: 8 },
     argDocs: {
       query:
-        "Free-text company name or partial ticker symbol to look up. Required, and passed as the first positional argument (not query := ...).",
-      count: "Maximum candidate symbols to return, clamped to 1..50. Default 8.",
+        "Free-text company name or partial ticker symbol to look up. Passed as the first positional argument (not query := ...); a literal or a column (LATERAL search(t.name)). A NULL or empty query yields no rows.",
+      count: "Maximum candidate symbols to return per query, clamped to 1..50. Default 8.",
     },
-    onBind: (p) => {
-      if (p.args.query == null || String(p.args.query).trim() === "") {
-        throw new ArgumentValidationError("search: query is required");
-      }
-      return { outputSchema: schema };
-    },
-    initialState: () => ({ done: false }),
-    process: async (p, state: DoneState, out: OutputCollector) => {
-      if (state.done) {
-        out.finish();
-        return;
-      }
+    onBind: () => ({ outputSchema: schema }),
+    process: async (p, batch, out) => {
       const count = Number(p.args.count ?? 8);
-      const rows = await fetchSearch(get, String(p.args.query), count > 0 ? count : 8);
-      out.emit(searchBatch(schema, rows));
-      state.done = true;
+      const queries: (string | null)[] = [];
+      for (let row = 0; row < batch.numRows; row++) queries.push(cellString(batch, "query", row));
+
+      // One search request per DISTINCT query in the chunk, bounded in flight. An HTTP
+      // error fails the scan, as the literal form does; no match is simply zero rows.
+      const distinct = [...new Set(queries.filter((q): q is string => q !== null))];
+      const fetched = await mapLimit(distinct, MAX_CONCURRENCY, (q) => fetchSearch(get, q, count > 0 ? count : 8));
+      const byQuery = new Map(distinct.map((q, i) => [q, fetched[i]!]));
+
+      const rows: SearchRow[] = [];
+      const parentRows: number[] = [];
+      queries.forEach((q, row) => {
+        for (const r of (q && byQuery.get(q)) || []) {
+          rows.push(r);
+          parentRows.push(row);
+        }
+      });
+      out.emit(searchBatch(schema, rows), parentRowsMetadata(parentRows, rows.length));
     },
     examples: SEARCH_EXAMPLES,
     tags: {

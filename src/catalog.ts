@@ -61,44 +61,26 @@ const CATALOG_TAGS: Record<string, string> = {
       sql: "SELECT timestamp, close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp",
     },
   ]),
-  // The agent-suitability suite (catalog only); reference_sql / check_sql / success_criteria
-  // are grader-only. Grading uses the strongest AVAILABLE oracle in order: reference_sql
-  // (exact result-set compare) → check_sql (boolean assertion) → success_criteria (LLM
-  // judge). We grade every task with a deterministic check_sql that asserts the specific
-  // ground truth (MSFT is findable, AAPL trades in USD, AAPL history returns candles), and
-  // deliberately OMIT reference_sql: exact result-set compare is unusable here because
-  // (a) live prices move between runs and (b) a free-form analyst rarely reproduces the
-  // reference query's exact column/row shape — and since Tier 1 wins when present, a
-  // reference_sql would override check_sql. check_sql also drives object coverage;
-  // success_criteria records what a correct answer looks like.
+  // The agent-suitability suite (catalog only). The published tag carries ONLY `name` +
+  // `prompt` — the grader fields (check_sql, success_criteria) live in the private sidecar
+  // vgi-agent-tests.yaml, keyed by name, so the analyst agent never sees them (VGI416).
   "vgi.agent_test_tasks": JSON.stringify([
     {
       name: "microsoft_ticker",
       prompt: "What stock ticker symbol does Microsoft Corporation trade under?",
-      check_sql: "SELECT count(*) > 0 FROM yfinance.main.search('microsoft') WHERE symbol = 'MSFT'",
-      success_criteria: "The answer identifies MSFT as Microsoft's ticker, found via the search function.",
     },
     {
       name: "apple_currency",
       prompt: "In what currency is Apple (AAPL) stock priced?",
-      check_sql: "SELECT count(*) > 0 FROM yfinance.main.quote('AAPL') WHERE currency = 'USD'",
-      success_criteria: "The answer states AAPL is priced in USD, obtained from the quote function.",
     },
     {
       name: "apple_recent_close",
       prompt: "What was Apple's (AAPL) closing price on the most recent trading day?",
-      check_sql: "SELECT count(*) > 0 FROM yfinance.main.history('AAPL', range := '5d')",
-      success_criteria:
-        "The answer reports a plausible recent AAPL daily closing price obtained from the history function.",
     },
     {
       name: "class_share_symbol_format",
       prompt:
         "Yahoo Finance writes class shares (like Berkshire Hathaway's Class B) with a special symbol format. Which ticker in this catalog's symbol reference illustrates that convention?",
-      check_sql:
-        "SELECT count(*) > 0 FROM yfinance.main.symbol_reference WHERE symbol = 'BRK-B' AND asset_type = 'EQUITY'",
-      success_criteria:
-        "The answer identifies BRK-B (Berkshire Hathaway Class B) as the hyphenated class-share example, found in the symbol_reference view.",
     },
   ]),
 };

@@ -4,6 +4,12 @@
 
 require-env VGI_TEST_WORKER
 
+# The HTTP transport (VGI_TEST_WORKER = a URL, e.g. the Cloudflare Worker) rides httpfs;
+# harmless for the stdio worker. An explicit LOAD, not `require httpfs`: the haybarn
+# runner's `require` only sees statically linked extensions and would skip the file.
+statement ok
+LOAD httpfs;
+
 statement ok
 ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
 
@@ -35,3 +41,16 @@ query I
 SELECT (count(*) BETWEEN 1 AND 5)::INT FROM yf.search('vanguard', count := 5);
 ----
 1
+
+# --- LATERAL: `query` is a per-row input column (blended row-transform). ---
+
+# The best match for each outer row, stamped onto the right row; `count` stays a literal
+# named arg alongside the column; a NULL row contributes no rows.
+query TT
+SELECT c.name, s.symbol
+FROM (VALUES ('apple'), ('microsoft'), (NULL)) c(name),
+     LATERAL yf.search(c.name, count := 1) s
+ORDER BY c.name;
+----
+apple	AAPL
+microsoft	MSFT

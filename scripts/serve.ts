@@ -1,10 +1,12 @@
 // Serve the vgi-yfinance worker over HTTP with the standardized VGI landing surface.
 //
-//   GET  /                                     → the shared vendored VGI landing.html
-//   GET  /describe.json                        → the worker's catalog introspection
-//   GET  /describe/{catalog}/{schema}/{t}.json → lazy per-object columns
-//   GET  /health                               → JSON health endpoint
-//   POST /                                     → the VGI RPC transport (what DuckDB attaches to)
+//   GET  /              → the shared vendored VGI landing.html (or a JSON status
+//                         document for health checks and `?format=json`)
+//   GET  /vgi-client.js → the browser client build the landing page reads the
+//                         catalog with — it introspects over the VGI protocol
+//                         itself, so there are no /describe*.json routes
+//   GET  /health        → JSON health endpoint
+//   POST /              → the VGI RPC transport (what DuckDB attaches to)
 //
 // Run it:  PORT=8000 bun run scripts/serve.ts   (default port 8787)
 // Attach:  ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION 'http://localhost:8000');

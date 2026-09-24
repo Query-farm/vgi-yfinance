@@ -1,0 +1,33 @@
+# Private grader sidecar for `vgi-lint simulate` (and `lint`'s VGI520 coverage). The worker
+# publishes only task names + prompts in `vgi.agent_test_tasks` (src/catalog.ts); these
+# grader fields are keyed by that name and never sent to the analyst agent.
+#
+# Grading uses the strongest oracle present: reference_sql (exact result-set compare) →
+# check_sql (boolean assertion) → success_criteria (LLM judge). Every task uses a
+# deterministic check_sql asserting the specific ground truth, and deliberately OMITS
+# reference_sql: an exact compare is unusable here because (a) live prices move between
+# runs and (b) a free-form analyst rarely reproduces the reference query's exact
+# column/row shape — and a reference_sql would win over check_sql. check_sql also drives
+# object coverage; success_criteria records what a correct answer looks like.
+tasks:
+  - name: microsoft_ticker
+    check_sql: SELECT count(*) > 0 FROM yfinance.main.search('microsoft') WHERE symbol = 'MSFT'
+    success_criteria: The answer identifies MSFT as Microsoft's ticker, found via the search function.
+
+  - name: apple_currency
+    check_sql: SELECT count(*) > 0 FROM yfinance.main.quote('AAPL') WHERE currency = 'USD'
+    success_criteria: The answer states AAPL is priced in USD, obtained from the quote function.
+
+  - name: apple_recent_close
+    check_sql: SELECT count(*) > 0 FROM yfinance.main.history('AAPL', range := '5d')
+    success_criteria: >-
+      The answer reports a plausible recent AAPL daily closing price obtained from the
+      history function.
+
+  - name: class_share_symbol_format
+    check_sql: >-
+      SELECT count(*) > 0 FROM yfinance.main.symbol_reference
+      WHERE symbol = 'BRK-B' AND asset_type = 'EQUITY'
+    success_criteria: >-
+      The answer identifies BRK-B (Berkshire Hathaway Class B) as the hyphenated
+      class-share example, found in the symbol_reference view.
