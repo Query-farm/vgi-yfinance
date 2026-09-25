@@ -99,6 +99,16 @@ Columns: `symbol`, `timestamp` (`TIMESTAMP` UTC), `open`, `high`, `low`, `close`
 `adjclose` (`DOUBLE`), `volume` (`BIGINT`). Thin/halted candles come back as `NULL`
 cells, never a crash.
 
+History results advertise a **60-second client-cache lifetime**, with per-symbol
+reuse enabled on the correlated `LATERAL` path. Matching calls can reuse a response
+during that minute, including symbols repeated across different `LATERAL` inputs.
+Use that form to observe exchange-cache hits; the literal-only scan path does not
+currently use this cache. Changing the date range, bar
+interval, or other request arguments requires a matching cache entry. Today's
+candle may still be developing, and Yahoo can correct older data: this is a
+short-lived snapshot, not a promise that historical prices never change.
+`quote()` and `search()` do not advertise result caching.
+
 ### Quote — current snapshot
 
 ```sql

@@ -20,6 +20,7 @@
 // bundles for Cloudflare; the arg types use vgi's backend-agnostic factories.
 import {
   bool,
+  cacheControlMetadata,
   defineRowTransformFunction,
   int64,
   parentRowsMetadata,
@@ -163,7 +164,12 @@ export function makeHistoryFunction(get: YahooGet) {
           parentRows.push(row);
         }
       });
-      out.emit(historyBatch(schema, rows), parentRowsMetadata(parentRows, rows.length));
+      // Today's candle can still change, and older candles can be corrected.
+      // Permit a short client-side snapshot, with reuse for each input symbol.
+      out.emit(historyBatch(schema, rows), cacheControlMetadata(
+        { ttl: 60, perValue: true },
+        parentRowsMetadata(parentRows, rows.length),
+      ));
     },
     examples: HISTORY_EXAMPLES,
     tags: {

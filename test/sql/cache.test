@@ -1,0 +1,60 @@
+# name: test/sql/cache.test
+# description: Historical candles are reused across LATERAL analyses; request options separate entries.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+LOAD httpfs;
+
+statement ok
+ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+CREATE TEMP TABLE watchlist AS SELECT * FROM (VALUES ('AAPL'), ('MSFT')) t(symbol);
+
+statement ok
+CREATE TEMP TABLE before_cache AS SELECT * FROM vgi_result_cache_stats();
+
+statement ok
+CREATE TEMP TABLE first_answer AS
+SELECT w.symbol, count(*) AS candles, sum(h.volume) AS total_volume
+FROM watchlist w, LATERAL yf.history(w.symbol, range := '1mo') h
+GROUP BY w.symbol;
+
+# The next query reads a different projection from the same cached history.
+statement ok
+CREATE TEMP TABLE second_answer AS
+SELECT w.symbol, sum(h.volume) AS total_volume
+FROM watchlist w, LATERAL yf.history(w.symbol, range := '1mo') h
+GROUP BY w.symbol;
+
+query I
+SELECT count(*) FROM first_answer f JOIN second_answer s USING (symbol, total_volume) WHERE f.candles > 0;
+----
+2
+
+query I
+SELECT (s.exchange_hits > b.exchange_hits)::INT FROM vgi_result_cache_stats() s, before_cache b;
+----
+1
+
+statement ok
+CREATE TEMP TABLE before_new_range AS SELECT * FROM vgi_result_cache_stats();
+
+# A different lookback window must not replay the one-month response.
+statement ok
+CREATE TEMP TABLE shorter_answer AS
+SELECT w.symbol, count(*) AS candles
+FROM watchlist w, LATERAL yf.history(w.symbol, range := '5d') h
+GROUP BY w.symbol;
+
+query I
+SELECT count(*) FROM shorter_answer s JOIN first_answer f USING (symbol) WHERE s.candles > 0 AND s.candles < f.candles;
+----
+2
+
+query I
+SELECT (s.exchange_misses > b.exchange_misses)::INT FROM vgi_result_cache_stats() s, before_new_range b;
+----
+1
