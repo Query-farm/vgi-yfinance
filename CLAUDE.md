@@ -106,12 +106,12 @@ SELECT * FROM yf.history('AAPL', range := '6mo');
 Not yet covered by a haybarn `.test` (no DuckDB-live E2E). If adding one, mirror the
 `.test` layout under a built `vgi` extension per the vgi-typescript CLAUDE.md.
 
-## SDK dependency (@query-farm/vgi ^0.36.2)
+## SDK dependency (@query-farm/vgi ^0.38.0)
 
-Depends on `@query-farm/vgi ^0.36.2` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
-+ `@query-farm/vgi-rpc ^0.25.4` (single arrow copy → no dual-instance "Unrecognized type
-NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.36.x declares a peer range of
-`>=0.25.4 <0.26.0` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
+Depends on `@query-farm/vgi ^0.38.0` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
++ `@query-farm/vgi-rpc ^0.26.0` (single arrow copy → no dual-instance "Unrecognized type
+NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.38.x declares a peer range of
+`>=0.26.0 <0.27.0` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
 conflict. 0.29 also made `createVgiFetch`'s `landingInfo` REQUIRED (worker name/doc/version
 for the `GET {prefix}/` landing surface); `test/http-transport.test.ts` passes it. If a
 fresh `bun install` can't find a newer published version, clear the stale registry cache:
