@@ -4,6 +4,9 @@
 
 require-env VGI_TEST_WORKER
 
+# HTTP errors must fail the suite instead of silently skipping the test.
+set ignore_error_messages
+
 statement ok
 LOAD httpfs;
 

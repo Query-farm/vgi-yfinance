@@ -61,17 +61,14 @@ bun run typecheck   # own-source only; scripts/typecheck.sh filters node_modules
 ./run_tests.sh      # haybarn SQLLogic E2E: worker under real DuckDB + community vgi ext
 ```
 
-`run_tests.sh` needs `uv tool install haybarn-unittest` and the vgi extension installed
-once via `echo "INSTALL vgi FROM community;" | uvx haybarn-cli`. It sets
+`run_tests.sh` uses uv to run matching `haybarn-cli` / `haybarn-unittest` 1.5.6rc1
+packages and refreshes the signed community vgi extension for protocol 2.2. It sets
 `VGI_TEST_WORKER=bin/vgi-yfinance-worker` (override it with a URL to run the same suite
-over HTTP, e.g. `VGI_TEST_WORKER=http://localhost:8787 ./run_tests.sh` against `wrangler
-dev`) + `VGI_WORKER_CATALOG_NAME=yfinance` and runs `test/sql/*.test`. Each `.test` does an
-explicit `LOAD httpfs` (the HTTP transport needs it; `run_tests.sh` installs it): NOT
-`require httpfs`, which the haybarn runner only satisfies for statically linked extensions,
-so every file silently skips. A failed HTTP ATTACH also reports as a *skip* ("skip on
-error_message matching 'HTTP'"), not a failure — an all-skipped run means it didn't connect. The `.test` backbone is DESCRIBE-based schema asserts (bind-only → no
-network → deterministic); a few live-invariant asserts hit Yahoo (fine for an egress
-connector). CI runs both this and the reusable `ts-ci.yml` (see `.github/workflows/ci.yml`).
+over HTTP, e.g. `VGI_TEST_WORKER=http://localhost:8787 ./run_tests.sh`) and
+`VGI_WORKER_CATALOG_NAME=yfinance`. Each `.test` explicitly loads httpfs and clears
+DuckDB's default ignored-error list, so HTTP failures cannot become successful skips.
+The suite combines schema checks with live Yahoo invariants. CI runs it alongside
+unit tests, typecheck, metadata lint, and a Cloudflare deploy dry run.
 
 Typecheck must be a `bash scripts/typecheck.sh` file (not an inline package.json pipeline)
 — `bun run` uses Bun's shell, which mishandles the `grep -v node_modules` filter. Pin
@@ -106,12 +103,12 @@ SELECT * FROM yf.history('AAPL', range := '6mo');
 Not yet covered by a haybarn `.test` (no DuckDB-live E2E). If adding one, mirror the
 `.test` layout under a built `vgi` extension per the vgi-typescript CLAUDE.md.
 
-## SDK dependency (@query-farm/vgi ^0.38.0)
+## SDK dependency (@query-farm/vgi ^0.45.0)
 
-Depends on `@query-farm/vgi ^0.38.0` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
-+ `@query-farm/vgi-rpc ^0.26.0` (single arrow copy → no dual-instance "Unrecognized type
-NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.38.x declares a peer range of
-`>=0.26.0 <0.27.0` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
+Depends on `@query-farm/vgi ^0.45.0` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
++ `@query-farm/vgi-rpc ^0.29.1` (single arrow copy → no dual-instance "Unrecognized type
+NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.45.x declares a peer range of
+`^0.29.1` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
 conflict. 0.29 also made `createVgiFetch`'s `landingInfo` REQUIRED (worker name/doc/version
 for the `GET {prefix}/` landing surface); `test/http-transport.test.ts` passes it. If a
 fresh `bun install` can't find a newer published version, clear the stale registry cache:

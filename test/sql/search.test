@@ -4,6 +4,9 @@
 
 require-env VGI_TEST_WORKER
 
+# HTTP errors must fail the suite instead of silently skipping the test.
+set ignore_error_messages
+
 # The HTTP transport (VGI_TEST_WORKER = a URL, e.g. the Cloudflare Worker) rides httpfs;
 # harmless for the stdio worker. An explicit LOAD, not `require httpfs`: the haybarn
 # runner's `require` only sees statically linked extensions and would skip the file.

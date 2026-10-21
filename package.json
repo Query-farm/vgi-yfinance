@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@query-farm/apache-arrow": "^21.1.1",
-    "@query-farm/vgi": "^0.38.0",
-    "@query-farm/vgi-rpc": "^0.26.0"
+    "@query-farm/vgi": "^0.45.0",
+    "@query-farm/vgi-rpc": "^0.29.1"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

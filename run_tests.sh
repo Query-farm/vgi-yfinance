@@ -4,31 +4,29 @@
 # community repository).
 #
 # Prerequisites (one-time):
-#   uv tool install haybarn-unittest                      # the DuckDB unittest binary
-#   echo "INSTALL vgi FROM community;" | uvx haybarn-cli  # install the vgi extension
-#   echo "INSTALL httpfs;" | uvx haybarn-cli               # HTTP transport (auto-installed below)
+#   uv                                                   # runs the matched CLI/test runner below
 #   bun install                                           # the worker's deps
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
-UNITTEST="${VGI_UNITTEST:-$(command -v haybarn-unittest || true)}"
-if [[ -z "$UNITTEST" || ! -x "$UNITTEST" ]]; then
-    echo "ERROR: haybarn-unittest not found. Install it with:" >&2
-    echo "       uv tool install haybarn-unittest" >&2
-    exit 1
+# Keep the CLI and test runner on the same DuckDB ABI and extension directory.
+# Older globally installed runners can load a stale protocol-2.0/2.1 extension.
+HAYBARN_VERSION="${HAYBARN_VERSION:-1.5.6rc1}"
+CLI=(uvx --prerelease=allow --from "haybarn-cli==$HAYBARN_VERSION" haybarn-cli)
+UNITTEST=(uvx --prerelease=allow --from "haybarn-unittest==$HAYBARN_VERSION" haybarn-unittest)
+if [[ -n "${VGI_UNITTEST:-}" ]]; then
+    UNITTEST=("$VGI_UNITTEST")
 fi
 
 # Ensure the vgi community extension is installed for this haybarn version.
-if ! echo "LOAD vgi;" | uvx haybarn-cli >/dev/null 2>&1; then
-    echo "==> Installing vgi extension from community repository"
-    echo "INSTALL vgi FROM community;" | uvx haybarn-cli
-fi
+echo "==> Refreshing vgi extension from community repository"
+echo "FORCE INSTALL vgi FROM community;" | "${CLI[@]}"
 # httpfs carries the HTTP transport (VGI_TEST_WORKER = a URL); the .test files `LOAD` it.
-if ! echo "LOAD httpfs;" | uvx haybarn-cli >/dev/null 2>&1; then
+if ! echo "LOAD httpfs;" | "${CLI[@]}" >/dev/null 2>&1; then
     echo "==> Installing httpfs extension"
-    echo "INSTALL httpfs;" | uvx haybarn-cli
+    echo "INSTALL httpfs;" | "${CLI[@]}"
 fi
 
 # NOTE: the last arg is a Catch2 test-name filter, not a shell glob. Catch2 only honors a
@@ -40,9 +38,9 @@ TEST_GLOB="${1:-test/sql/*}"
 
 echo "==> Running SQLLogic tests"
 echo "    worker:   $WORKER"
-echo "    unittest: $UNITTEST"
+echo "    unittest: ${UNITTEST[*]}"
 echo "    tests:    $TEST_GLOB"
 
 VGI_TEST_WORKER="$WORKER" \
 VGI_WORKER_CATALOG_NAME="yfinance" \
-    "$UNITTEST" --test-dir "$REPO_ROOT" "$TEST_GLOB"
+    "${UNITTEST[@]}" --test-dir "$REPO_ROOT" "$TEST_GLOB"

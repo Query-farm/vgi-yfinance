@@ -44,16 +44,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Install the haybarn unittest runner
-        run: |
-          uv tool install haybarn-unittest
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Install the vgi community extension
-        run: echo "INSTALL vgi FROM community;" | uvx haybarn-cli
-
       - name: Run SQLLogic suite against the worker
         run: ./run_tests.sh
+
+      - name: Check Cloudflare deployment bundle
+        run: bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/cloudflare-bundle"
 
   # Metadata-quality gate (vgi-lint): scores the worker's catalog/schema/function docs,
   # tags, categories, per-arg docs, and examples. execute:false keeps it deterministic —
