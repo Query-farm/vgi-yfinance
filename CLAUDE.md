@@ -106,7 +106,7 @@ Not yet covered by a haybarn `.test` (no DuckDB-live E2E). If adding one, mirror
 ## SDK dependency (@query-farm/vgi ^0.45.0)
 
 Depends on `@query-farm/vgi ^0.45.0` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
-+ `@query-farm/vgi-rpc ^0.29.1` (single arrow copy → no dual-instance "Unrecognized type
++ `@query-farm/vgi-rpc ^0.29.2` (single arrow copy → no dual-instance "Unrecognized type
 NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.45.x declares a peer range of
 `^0.29.1` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
 conflict. 0.29 also made `createVgiFetch`'s `landingInfo` REQUIRED (worker name/doc/version
