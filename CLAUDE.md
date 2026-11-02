@@ -61,8 +61,8 @@ bun run typecheck   # own-source only; scripts/typecheck.sh filters node_modules
 ./run_tests.sh      # haybarn SQLLogic E2E: worker under real DuckDB + community vgi ext
 ```
 
-`run_tests.sh` uses uv to run matching `haybarn-cli` / `haybarn-unittest` 1.5.6rc1
-packages and refreshes the signed community vgi extension for protocol 2.2. It sets
+`run_tests.sh` uses uv to run matching `haybarn-cli` / `haybarn-unittest` 2.0.0rc10
+packages and refreshes the signed community vgi extension for protocol 3.0. It sets
 `VGI_TEST_WORKER=bin/vgi-yfinance-worker` (override it with a URL to run the same suite
 over HTTP, e.g. `VGI_TEST_WORKER=http://localhost:8787 ./run_tests.sh`) and
 `VGI_WORKER_CATALOG_NAME=yfinance`. Each `.test` explicitly loads httpfs and clears
@@ -103,12 +103,12 @@ SELECT * FROM yf.history('AAPL', range := '6mo');
 Not yet covered by a haybarn `.test` (no DuckDB-live E2E). If adding one, mirror the
 `.test` layout under a built `vgi` extension per the vgi-typescript CLAUDE.md.
 
-## SDK dependency (@query-farm/vgi ^0.45.0)
+## SDK dependency (@query-farm/vgi ^0.47.2)
 
-Depends on `@query-farm/vgi ^0.45.0` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
-+ `@query-farm/vgi-rpc ^0.29.2` (single arrow copy → no dual-instance "Unrecognized type
-NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.45.x declares a peer range of
-`^0.29.1` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
+Depends on `@query-farm/vgi ^0.47.2` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
++ `@query-farm/vgi-rpc ^0.29.3` (single arrow copy → no dual-instance "Unrecognized type
+NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.47.x declares a peer range of
+`^0.29.2` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
 conflict. 0.29 also made `createVgiFetch`'s `landingInfo` REQUIRED (worker name/doc/version
 for the `GET {prefix}/` landing surface); `test/http-transport.test.ts` passes it. If a
 fresh `bun install` can't find a newer published version, clear the stale registry cache:

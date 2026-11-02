@@ -18,7 +18,7 @@ planes, which now return `401 Unauthorized` from datacenter IPs even with a crum
 > + the community `vgi` extension, and a `vgi-lint` metadata-quality gate at 100/100), and
 > every function is verified live against Yahoo.
 
-Current source builds use VGI 0.45.0 / RPC 0.29.2 and require a protocol **2.2**
+Current source builds use VGI 0.47.2 / RPC 0.29.3 and require a protocol **3.0**
 client. Refresh DuckDB's extension with `FORCE INSTALL vgi FROM community;`.
 
 ## Install / attach
@@ -162,7 +162,7 @@ The E2E suite needs uv and network access; it manages the matched Haybarn tools
 and current signed VGI extension:
 
 ```bash
-./run_tests.sh  # uv installs matching Haybarn 1.5.6rc1 tools and refreshes vgi
+./run_tests.sh  # uv installs matching Haybarn 2.0.0rc10 tools and refreshes vgi
 ```
 
 Metadata quality is graded by [`vgi-lint`](https://github.com/Query-farm/vgi-lint-check)
