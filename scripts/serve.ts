@@ -38,7 +38,7 @@ const catalogInterface = new ReadOnlyCatalogInterface(makeCatalog(functions), re
 serveVgiWorker({
   name: "yfinance",
   doc: "Yahoo Finance market data: history (OHLCV), quote (snapshot), and symbol search.",
-  version: "0.3.1",
+  version: "0.4.0",
   repositoryUrl: "https://github.com/Query-farm/vgi-yfinance",
   serverId: "vgi-yfinance",
   registry,
