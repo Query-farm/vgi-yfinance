@@ -13,7 +13,7 @@ cd "$REPO_ROOT"
 
 # Keep the CLI and test runner on the same DuckDB ABI and extension directory.
 # Older globally installed runners can load a stale protocol-2.x extension.
-HAYBARN_VERSION="${HAYBARN_VERSION:-2.0.0rc10}"
+HAYBARN_VERSION="${HAYBARN_VERSION:-2.0.0rc11}"
 CLI=(uvx --prerelease=allow --from "haybarn-cli==$HAYBARN_VERSION" haybarn-cli)
 # --keep-home: Haybarn 2.0 isolates $HOME per run, hiding the installed extensions.
 UNITTEST=(uvx --prerelease=allow --from "haybarn-unittest==$HAYBARN_VERSION" haybarn-unittest --keep-home)

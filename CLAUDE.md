@@ -61,8 +61,8 @@ bun run typecheck   # own-source only; scripts/typecheck.sh filters node_modules
 ./run_tests.sh      # haybarn SQLLogic E2E: worker under real DuckDB + community vgi ext
 ```
 
-`run_tests.sh` uses uv to run matching `haybarn-cli` / `haybarn-unittest` 2.0.0rc10
-packages and refreshes the signed community vgi extension for protocol 3.0. It sets
+`run_tests.sh` uses uv to run matching `haybarn-cli` / `haybarn-unittest` 2.0.0rc11
+packages and refreshes the signed community vgi extension for protocol 3.1. It sets
 `VGI_TEST_WORKER=bin/vgi-yfinance-worker` (override it with a URL to run the same suite
 over HTTP, e.g. `VGI_TEST_WORKER=http://localhost:8787 ./run_tests.sh`) and
 `VGI_WORKER_CATALOG_NAME=yfinance`. Each `.test` explicitly loads httpfs and clears

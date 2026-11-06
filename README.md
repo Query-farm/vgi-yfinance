@@ -18,8 +18,8 @@ planes, which now return `401 Unauthorized` from datacenter IPs even with a crum
 > + the community `vgi` extension, and a `vgi-lint` metadata-quality gate at 100/100), and
 > every function is verified live against Yahoo.
 
-Current source builds use VGI 0.47.2 / RPC 0.29.3 and require a protocol **3.0**
-client. Refresh DuckDB's extension with `FORCE INSTALL vgi FROM community;`.
+Current source builds use VGI 0.48.0 / RPC 0.29.5 and require a protocol **3.1**
+client (haybarn 2.0). Refresh DuckDB's extension with `FORCE INSTALL vgi FROM community;`.
 
 ## Install / attach
 
@@ -27,7 +27,7 @@ client. Refresh DuckDB's extension with `FORCE INSTALL vgi FROM community;`.
 
 Each [release](https://github.com/Query-farm/vgi-yfinance/releases) ships a self-contained
 executable per platform, so the host needs **neither Bun nor `node_modules`**. Archives are
-named `vgi-yfinance-<tag>-<platform>.tar.gz` for `linux_amd64`, `linux_arm64`, `osx_amd64`,
+named `vgi-yfinance-<tag>-<platform>.tar.gz` for `linux_amd64`, `linux_arm64`,
 `osx_arm64`, and `windows_amd64`, each with a SHA256, a keyless **cosign** signature, and a
 **SLSA** build-provenance attestation.
 
@@ -162,7 +162,7 @@ The E2E suite needs uv and network access; it manages the matched Haybarn tools
 and current signed VGI extension:
 
 ```bash
-./run_tests.sh  # uv installs matching Haybarn 2.0.0rc10 tools and refreshes vgi
+./run_tests.sh  # uv installs matching Haybarn 2.0.0rc11 tools and refreshes vgi
 ```
 
 Metadata quality is graded by [`vgi-lint`](https://github.com/Query-farm/vgi-lint-check)

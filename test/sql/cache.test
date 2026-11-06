@@ -11,7 +11,7 @@ statement ok
 LOAD httpfs;
 
 statement ok
-ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '{VGI_TEST_WORKER}');
 
 statement ok
 CREATE TEMP TABLE watchlist AS SELECT * FROM (VALUES ('AAPL'), ('MSFT')) t(symbol);

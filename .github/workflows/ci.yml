@@ -66,7 +66,8 @@ jobs:
       - name: Install worker dependencies
         run: bun install --frozen-lockfile
       - name: vgi-lint
-        uses: Query-farm/vgi-lint-check@v1
+        # @v2 = vgi-lint-check 2.x on haybarn 2.0 (@v1 cannot attach vgi.v3 workers).
+        uses: Query-farm/vgi-lint-check@v2
         with:
           location: "${{ github.workspace }}/bin/vgi-yfinance-worker"
           fail-on: info
