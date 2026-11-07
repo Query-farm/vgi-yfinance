@@ -13,7 +13,7 @@ Everything rides Yahoo's **keyless, un-gated** planes — there is no secret to 
 no login. (The worker deliberately avoids the `v7/finance/quote` and `v10/quoteSummary`
 planes, which now return `401 Unauthorized` from datacenter IPs even with a crumb.)
 
-> **Status:** released — [`v0.1.0`](https://github.com/Query-farm/vgi-yfinance/releases).
+> **Status:** released — [`v0.4.0`](https://github.com/Query-farm/vgi-yfinance/releases).
 > CI is green (unit tests, own-source typecheck, haybarn SQLLogic E2E against a real DuckDB
 > + the community `vgi` extension, and a `vgi-lint` metadata-quality gate at 100/100), and
 > every function is verified live against Yahoo.
@@ -21,40 +21,49 @@ planes, which now return `401 Unauthorized` from datacenter IPs even with a crum
 Current source builds use VGI 0.48.0 / RPC 0.29.5 and require a protocol **3.1**
 client (haybarn 2.0). Refresh DuckDB's extension with `FORCE INSTALL vgi FROM community;`.
 
-## Install / attach
+## Quick start
 
-### Option A — prebuilt binary (recommended)
-
-Each [release](https://github.com/Query-farm/vgi-yfinance/releases) ships a self-contained
-executable per platform, so the host needs **neither Bun nor `node_modules`**. Archives are
-named `vgi-yfinance-<tag>-<platform>.tar.gz` for `linux_amd64`, `linux_arm64`,
-`osx_arm64`, and `windows_amd64`, each with a SHA256, a keyless **cosign** signature, and a
-**SLSA** build-provenance attestation.
-
-```bash
-# download the archive for your platform from the releases page, then:
-tar xzf vgi-yfinance-v0.1.0-osx_arm64.tar.gz     # → vgi-yfinance-worker
-```
+Every [GitHub release](https://github.com/Query-farm/vgi-yfinance/releases) ships a prebuilt worker binary. The `vgi` extension downloads the one for your platform, checks its SHA-256 and caches it, so there is nothing to install besides DuckDB:
 
 ```sql
+INSTALL vgi FROM community;
 LOAD vgi;
-ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '/path/to/vgi-yfinance-worker');
+
+ATTACH 'yfinance' AS yfinance (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-yfinance@v0.4.0');
+
+-- Resolve a company name to candidate tickers
+SELECT symbol, short_name FROM yfinance.main.search('apple') LIMIT 3;
+
+-- Fetch the last few daily candles for a ticker
+SELECT timestamp, close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp;
 ```
 
-Optionally verify the download before trusting it:
+Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64). `github-auto://` needs an explicit release tag; change `@v0.4.0` to move to a newer release.
 
-```sh
-cosign verify-blob \
-  --bundle vgi-yfinance-v0.1.0-osx_arm64.tar.gz.cosign.bundle \
-  --certificate-identity-regexp '^https://github\.com/Query-farm/vgi-actions/\.github/workflows/ts-release\.yml@' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  vgi-yfinance-v0.1.0-osx_arm64.tar.gz
+### Other ways to run it
 
-gh attestation verify vgi-yfinance-v0.1.0-osx_arm64.tar.gz \
-  --repo Query-farm/vgi-yfinance --signer-repo Query-farm/vgi-actions
-```
+- **Docker** (the image bundles the worker; needs a container runtime):
 
-### Option B — from source (Bun)
+  ```sql
+  ATTACH 'yfinance' AS yfinance (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-yfinance:0.4.0');
+  ```
+
+- **Manual download.** Download the archive for your platform from the [releases page](https://github.com/Query-farm/vgi-yfinance/releases), verify it against its `.sha256` file (a cosign `.cosign.bundle` is published alongside), unpack it, and set `LOCATION` to the path of the extracted worker executable. To check the signature and build provenance as well:
+
+  ```sh
+  cosign verify-blob \
+    --bundle vgi-yfinance-v0.4.0-osx_arm64.tar.gz.cosign.bundle \
+    --certificate-identity-regexp '^https://github\.com/Query-farm/vgi-actions/\.github/workflows/ts-release\.yml@' \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    vgi-yfinance-v0.4.0-osx_arm64.tar.gz
+
+  gh attestation verify vgi-yfinance-v0.4.0-osx_arm64.tar.gz \
+    --repo Query-farm/vgi-yfinance --signer-repo Query-farm/vgi-actions
+  ```
+
+The [Usage](#usage) examples below use the shorter alias `yf` (`yf.history(...)`); attach with `AS yf` instead of `AS yfinance` to paste them as-is.
+
+### Build from source
 
 For development or the latest `main`, run the worker on [Bun](https://bun.sh):
 
@@ -68,6 +77,8 @@ ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '/path/to/vgi-yfinance/bin/vgi-yfina
 ```
 
 `bin/vgi-yfinance-worker` is a small wrapper that launches `src/worker.ts` under Bun.
+
+Tests, typecheck and the E2E suite are described under [Development](#development).
 
 ## Usage
 
