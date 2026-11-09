@@ -16,6 +16,7 @@ const ISSUES = `${REPO}/issues`;
 /** Catalog-level tags: docs, discovery, provenance, and the agent-test suite. */
 const CATALOG_TAGS: Record<string, string> = {
   "vgi.title": "Yahoo Finance",
+  "vgi.subtitle": "Keyless stock price history, live quotes and ticker lookup from Yahoo Finance.",
   "vgi.doc_llm":
     "Live and historical stock-market data from Yahoo Finance as SQL table functions. " +
     "Reach for it to pull OHLCV price history for a ticker, snapshot the current price and " +
