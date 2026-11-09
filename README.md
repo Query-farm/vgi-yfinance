@@ -18,7 +18,7 @@ planes, which now return `401 Unauthorized` from datacenter IPs even with a crum
 > + the community `vgi` extension, and a `vgi-lint` metadata-quality gate at 100/100), and
 > every function is verified live against Yahoo.
 
-Current source builds use VGI 0.48.0 / RPC 0.29.5 and require a protocol **3.1**
+Current source builds use VGI 0.49.1 / RPC 0.29.7 and require a protocol **3.2**
 client (haybarn 2.0). Refresh DuckDB's extension with `FORCE INSTALL vgi FROM community;`.
 
 ## Quick start
