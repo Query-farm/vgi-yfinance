@@ -25,10 +25,10 @@ const CATALOG_TAGS: Record<string, string> = {
     "BTC-USD, ^GSPC). Data is Yahoo's unofficial public feed: best-effort, for informational use.",
   "vgi.doc_md":
     "## Yahoo Finance\n\n" +
-    "Market data from Yahoo Finance, exposed as three keyless DuckDB table functions.\n\n" +
-    "- **`history`** — OHLCV candles for one ticker over a named range or explicit date range.\n" +
-    "- **`quote`** — a current-price snapshot (price, change, day & 52-week range, volume) for a list of tickers.\n" +
-    "- **`search`** — resolve a company name or partial symbol to candidate tickers.\n\n" +
+    "Market data from Yahoo Finance's public, keyless endpoints as DuckDB table functions: " +
+    "OHLCV price history over a named or explicit date range, current-price snapshots " +
+    "(price, change, day & 52-week range, volume) for a list of tickers, and name-to-ticker " +
+    "resolution.\n\n" +
     "No secret or API key is required. Prices are delayed and provided for informational use only; " +
     "review Yahoo's terms before redistribution. Intraday candles are only available for recent ranges.",
   "vgi.keywords": JSON.stringify([
@@ -95,13 +95,11 @@ const SCHEMA_TAGS: Record<string, string> = {
     "`search` maps free text to ticker symbols. Start with `search` when you only know a company " +
     "name, then feed the resolved symbol into `history` or `quote`.",
   "vgi.doc_md":
-    "## Market data functions\n\n" +
-    "| Function | Returns | Typical use |\n" +
-    "| --- | --- | --- |\n" +
-    "| `history` | OHLCV candles (time series) | charting, returns, backtests |\n" +
-    "| `quote` | current snapshot per symbol | dashboards, watchlists |\n" +
-    "| `search` | candidate tickers | name → symbol resolution |\n\n" +
-    "All are keyless and take a ticker (or a comma-separated list) plus optional named arguments. " +
+    "## Market data\n\n" +
+    "Time series of OHLCV candles, one-row-per-symbol pricing snapshots, and ticker lookup. " +
+    "Use the time series for charting, returns and backtests; the snapshots for dashboards and " +
+    "watchlists; and the lookup when you only know a company name.\n\n" +
+    "Everything is keyless and takes a ticker (or a comma-separated list) plus optional named arguments. " +
     "Symbols follow Yahoo's convention (e.g. `AAPL`, `BRK-B`, `BTC-USD`, `^GSPC`).",
   "vgi.keywords": JSON.stringify(["price history", "candles", "snapshot quote", "symbol lookup", "OHLCV"]),
   domain: "finance",

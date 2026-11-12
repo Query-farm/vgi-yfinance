@@ -13,12 +13,12 @@ Everything rides Yahoo's **keyless, un-gated** planes — there is no secret to 
 no login. (The worker deliberately avoids the `v7/finance/quote` and `v10/quoteSummary`
 planes, which now return `401 Unauthorized` from datacenter IPs even with a crumb.)
 
-> **Status:** released — [`v0.5.0`](https://github.com/Query-farm/vgi-yfinance/releases).
+> **Status:** released — [`v0.6.0`](https://github.com/Query-farm/vgi-yfinance/releases).
 > CI is green (unit tests, own-source typecheck, haybarn SQLLogic E2E against a real DuckDB
 > + the community `vgi` extension, and a `vgi-lint` metadata-quality gate at 100/100), and
 > every function is verified live against Yahoo.
 
-Current source builds use VGI 0.49.1 / RPC 0.29.7 and speak protocol **3.2**.
+Current source builds use VGI 0.50.0 / RPC 0.29.7 and speak protocol **3.3** (3.2 extensions cannot attach).
 Use Haybarn 2.0 with a current signed VGI extension; refresh it with
 `FORCE INSTALL vgi FROM community;`.
 
@@ -30,7 +30,7 @@ Every [GitHub release](https://github.com/Query-farm/vgi-yfinance/releases) ship
 INSTALL vgi FROM community;
 LOAD vgi;
 
-ATTACH 'yfinance' AS yfinance (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-yfinance@v0.5.0');
+ATTACH 'yfinance' AS yfinance (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-yfinance@v0.6.0');
 
 -- Resolve a company name to candidate tickers
 SELECT symbol, short_name FROM yfinance.main.search('apple') LIMIT 3;
@@ -39,26 +39,26 @@ SELECT symbol, short_name FROM yfinance.main.search('apple') LIMIT 3;
 SELECT timestamp, close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp;
 ```
 
-Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64). `github-auto://` needs an explicit release tag; change `@v0.5.0` to move to a newer release.
+Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64). `github-auto://` needs an explicit release tag; change `@v0.6.0` to move to a newer release.
 
 ### Other ways to run it
 
 - **Docker** (the image bundles the worker; needs a container runtime):
 
   ```sql
-  ATTACH 'yfinance' AS yfinance (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-yfinance:0.5.0');
+  ATTACH 'yfinance' AS yfinance (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-yfinance:0.6.0');
   ```
 
 - **Manual download.** Download the archive for your platform from the [releases page](https://github.com/Query-farm/vgi-yfinance/releases), verify it against its `.sha256` file (a cosign `.cosign.bundle` is published alongside), unpack it, and set `LOCATION` to the path of the extracted worker executable. To check the signature and build provenance as well:
 
   ```sh
   cosign verify-blob \
-    --bundle vgi-yfinance-v0.5.0-osx_arm64.tar.gz.cosign.bundle \
+    --bundle vgi-yfinance-v0.6.0-osx_arm64.tar.gz.cosign.bundle \
     --certificate-identity-regexp '^https://github\.com/Query-farm/vgi-actions/\.github/workflows/ts-release\.yml@' \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-    vgi-yfinance-v0.5.0-osx_arm64.tar.gz
+    vgi-yfinance-v0.6.0-osx_arm64.tar.gz
 
-  gh attestation verify vgi-yfinance-v0.5.0-osx_arm64.tar.gz \
+  gh attestation verify vgi-yfinance-v0.6.0-osx_arm64.tar.gz \
     --repo Query-farm/vgi-yfinance --signer-repo Query-farm/vgi-actions
   ```
 
