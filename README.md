@@ -292,3 +292,9 @@ redistribution or commercial use. This worker is not affiliated with or endorsed
 ## License
 
 MIT — Copyright 2026 Query Farm LLC · https://query.farm
+
+## Python notebook
+
+[Align dates before comparing adjusted price paths](notebooks/01_align_adjusted_price_paths.ipynb)
+includes executed SQL, charts, a portable release ATTACH and a start-date experiment.
+See [notebook setup and interpretation](notebooks/README.md).
