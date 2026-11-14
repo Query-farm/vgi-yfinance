@@ -79,3 +79,29 @@ GROUP BY t.sym ORDER BY t.sym;
 ----
 AAPL	1	1
 MSFT	1	1
+
+# --- Argument validation (bind time, no network). Regression: these used to be ignored
+# silently, returning the default 1mo window instead of the requested dates. ---
+
+statement error
+SELECT count(*) FROM yf.history('AAPL', start_date := '2024/01/01');
+----
+start_date '2024/01/01' is not a valid YYYY-MM-DD date
+
+statement error
+SELECT count(*) FROM yf.history('AAPL', end_date := '2024-01-31');
+----
+end_date requires start_date
+
+statement error
+SELECT count(*) FROM yf.history('AAPL', start_date := '2024-03-01', end_date := '2024-01-01');
+----
+must be after start_date
+
+# Regression: Yahoo leaves the newest daily candle's close NULL for a while; the worker
+# fills it from the latest market price, so the newest candle always has a close.
+query I
+SELECT (arg_max(close, timestamp) IS NOT NULL OR max(timestamp) IS NULL)::INT
+FROM (SELECT timestamp, close FROM yf.history('AAPL', range := '5d') ORDER BY timestamp DESC LIMIT 1);
+----
+1

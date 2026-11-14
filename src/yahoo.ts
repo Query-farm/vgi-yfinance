@@ -1,11 +1,11 @@
 // The Yahoo Finance driver — pure logic, no network and no SDK. Every function takes an
 // injected `get(url) => Promise<any>` so the archetype-proof tests drive it against an
-// in-process fake and the worker wires the real crumb/cookie client (client.ts).
+// in-process fake and the worker wires the real keyless fetch client (client.ts).
 //
 // Three read paths, all keyless point-in-time snapshots (no cursor / no watermark — a
 // finance quote or a chart pull has no cross-scan resume state):
 //   history  → v8 /finance/chart/{symbol}     OHLCV time series (NO crumb needed)
-//   quote    → v7 /finance/quote?symbols=...   current snapshot   (crumb-gated)
+//   quote    → v8 /finance/chart/{symbol}     current snapshot from the chart `meta` (NO crumb)
 //   search   → v1 /finance/search?q=...        symbol lookup      (NO crumb needed)
 //
 // The response shapes below are Yahoo's unofficial (undocumented) JSON envelopes. They
@@ -43,15 +43,40 @@ export interface HistoryRow {
   volume: number | null;
 }
 
-/** Convert a YYYY-MM-DD date to epoch seconds (UTC midnight). NaN-safe: returns null. */
+/**
+ * Convert a YYYY-MM-DD date to epoch seconds (UTC midnight). Returns null for an empty or
+ * malformed string, including impossible calendar dates like 2024-02-30.
+ */
 export function dateToEpoch(d: string): number | null {
-  if (!d) return null;
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
   const ms = Date.parse(`${d}T00:00:00Z`);
-  return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+  if (Number.isNaN(ms) || new Date(ms).toISOString().slice(0, 10) !== d) return null;
+  return Math.floor(ms / 1000);
+}
+
+/**
+ * Validate history's start/end arguments. A malformed date, or an end without a start,
+ * used to be silently ignored, so the call quietly returned the default `range` window
+ * instead of the dates asked for. Throws with a message naming the bad argument.
+ */
+export function validateHistoryDates(start: string, end: string): void {
+  if (start && dateToEpoch(start) === null) {
+    throw new Error(`yfinance history: start_date '${start}' is not a valid YYYY-MM-DD date`);
+  }
+  if (end && dateToEpoch(end) === null) {
+    throw new Error(`yfinance history: end_date '${end}' is not a valid YYYY-MM-DD date`);
+  }
+  if (end && !start) {
+    throw new Error("yfinance history: end_date requires start_date (without it the named range is used)");
+  }
+  if (start && end && dateToEpoch(end)! <= dateToEpoch(start)!) {
+    throw new Error(`yfinance history: end_date '${end}' must be after start_date '${start}'`);
+  }
 }
 
 /** Build the v8 chart URL. `start` present → period1/period2 range; else the named `range`. */
 export function chartUrl(a: HistoryArgs, host: string = YF_HOST, nowMs: number = Date.now()): string {
+  validateHistoryDates(a.start, a.end);
   const p = new URLSearchParams();
   p.set("interval", a.interval || "1d");
   const startEpoch = dateToEpoch(a.start);
@@ -75,7 +100,7 @@ interface ChartQuote {
   volume?: (number | null)[];
 }
 interface ChartResult {
-  meta?: { symbol?: string };
+  meta?: { symbol?: string; regularMarketPrice?: number; regularMarketTime?: number };
   timestamp?: number[];
   indicators?: { quote?: ChartQuote[]; adjclose?: { adjclose?: (number | null)[] }[] };
 }
@@ -109,6 +134,25 @@ export function parseChart(json: unknown, symbol: string): HistoryRow[] {
       adjclose: at(adj, i) ?? at(q.close, i),
       volume: at(q.volume, i),
     });
+  }
+  // Yahoo often leaves the newest candle's close (and adjclose) null for a while — even
+  // after the session ends — although open/high/low/volume are filled and the chart `meta`
+  // already carries the last price. Fill that one cell from meta.regularMarketPrice when the
+  // price's timestamp falls inside the candle, so "latest close" queries don't silently skip
+  // to the previous day. Only the last candle is touched; older null cells stay null.
+  const last = rows[rows.length - 1];
+  const livePrice = result.meta?.regularMarketPrice;
+  const liveTime = result.meta?.regularMarketTime;
+  if (
+    last &&
+    last.close === null &&
+    typeof livePrice === "number" &&
+    Number.isFinite(livePrice) &&
+    typeof liveTime === "number" &&
+    liveTime >= last.timestamp
+  ) {
+    last.close = livePrice;
+    if (last.adjclose === null) last.adjclose = livePrice;
   }
   return rows;
 }
@@ -288,11 +332,25 @@ export interface SearchRow {
   score: number | null;
 }
 
+/** Default number of search candidates per query. */
+export const SEARCH_DEFAULT_COUNT = 8;
+
+/**
+ * The effective `count` for a search: NULL/undefined/non-numeric -> the default (8); any
+ * number is truncated and clamped to [1, 50] (so 0 or a negative asks for 1, not 8).
+ */
+export function clampSearchCount(count: unknown): number {
+  if (count == null) return SEARCH_DEFAULT_COUNT;
+  const n = Math.trunc(Number(count));
+  if (!Number.isFinite(n)) return SEARCH_DEFAULT_COUNT;
+  return Math.max(1, Math.min(n, 50));
+}
+
 /** Build the v1 search URL. `count` bounds the returned equity/ETF quotes. */
 export function searchUrl(query: string, count: number, host: string = YF_HOST): string {
   const p = new URLSearchParams();
   p.set("q", query);
-  p.set("quotesCount", String(Math.max(1, Math.min(count, 50))));
+  p.set("quotesCount", String(clampSearchCount(count)));
   p.set("newsCount", "0");
   p.set("enableFuzzyQuery", "false");
   return `${host}/v1/finance/search?${p.toString()}`;

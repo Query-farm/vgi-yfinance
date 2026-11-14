@@ -1,12 +1,12 @@
 // vgi-yfinance stdio worker entry. DuckDB spawns this and ATTACHes it:
 //   LOAD vgi;
-//   ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '/path/to/vgi-yfinance/src/worker.ts');
+//   ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '/path/to/vgi-yfinance/bin/vgi-yfinance-worker');
 //   SELECT * FROM yf.history('AAPL', range := '6mo');
 //   SELECT * FROM yf.quote('AAPL,MSFT,GOOG');
 //   SELECT * FROM yf.search('vanguard');
 //
-// Keyless: no CREATE SECRET is needed. The worker wires the real crumb/cookie HTTP client
-// (client.ts) into the three table functions; the functions themselves stay network-free
+// Keyless: no CREATE SECRET is needed. The worker wires the real keyless HTTP client
+// (client.ts, no crumb or cookie) into the three table functions; the functions themselves stay network-free
 // and take the client as an injected `get`.
 
 import { Worker, ReadOnlyCatalogInterface, FunctionRegistry } from "@query-farm/vgi";

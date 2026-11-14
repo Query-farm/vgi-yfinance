@@ -1,0 +1,19 @@
+# vgi-lint settings for this worker: https://github.com/Query-farm/vgi-lint-check
+# `vgi-lint lint` in this directory reads this file. Look up a rule with
+# `vgi-lint explain VGI123`; print the metadata tag contract with `vgi-lint spec`.
+# CI's metadata job passes the same location and fail-on to the vgi-lint-check action.
+
+# The worker to attach, relative to this directory. Run `bun install` first.
+location = "bin/vgi-yfinance-worker"
+
+# Fail on every finding, info included (the publish bar).
+fail_on = "info"
+
+# Waive a finding only with a kind and a reason, so the waiver can be audited:
+#   domain-exemption  permanent and legitimate for this worker
+#   deferred          a real defect you will fix; add expires = "YYYY-MM-DD"
+#   timing            slow or flaky because of the environment, not the metadata
+#   tooling-bug       the linter is wrong; report it upstream
+ignore = [
+  # { code = "VGI146", kind = "domain-exemption", reason = "every entry point needs a key" },
+]

@@ -1,6 +1,6 @@
 // A tiny in-process fake of the Yahoo Finance endpoints — enough to prove the driver:
 // it records every requested URL (so a test can assert the wire contract) and returns a
-// canned envelope shaped like Yahoo's real v8 chart / v7 quote / v1 search JSON. No
+// canned envelope shaped like Yahoo's real v8 chart (history + quote meta) / v1 search JSON. No
 // network. Matches the driver's injected `get(url) => Promise<unknown>` signature.
 
 export class FakeYahoo {

@@ -18,7 +18,7 @@ CLI=(uvx --prerelease=allow --from "haybarn-cli==$HAYBARN_VERSION" haybarn-cli)
 # --keep-home: Haybarn 2.0 isolates $HOME per run, hiding the installed extensions.
 UNITTEST=(uvx --prerelease=allow --from "haybarn-unittest==$HAYBARN_VERSION" haybarn-unittest --keep-home)
 if [[ -n "${VGI_UNITTEST:-}" ]]; then
-    UNITTEST=("$VGI_UNITTEST")
+    UNITTEST=("$VGI_UNITTEST" --keep-home)
 fi
 
 # Ensure the vgi community extension is installed for this haybarn version.

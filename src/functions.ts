@@ -31,9 +31,11 @@ import {
   fetchHistory,
   fetchQuoteMap,
   fetchSearch,
+  clampSearchCount,
   mapLimit,
   MAX_CONCURRENCY,
   parseSymbols,
+  validateHistoryDates,
   type HistoryRow,
   type QuoteRow,
   type SearchRow,
@@ -46,6 +48,12 @@ import {
   searchSchema,
   searchBatch,
 } from "./schema.js";
+import {
+  FOREIGN_LISTINGS_IN_USD,
+  NAMES_TO_LIVE_QUOTE,
+  NAMES_TO_TOTAL_RETURN,
+  QUOTE_VS_MONTH_AVERAGE,
+} from "./examples.js";
 
 /** The injected HTTP getter: URL in, parsed JSON out. */
 export type YahooGet = (url: string) => Promise<unknown>;
@@ -84,7 +92,7 @@ const HISTORY_EXAMPLES = [
     description: "The five most recent daily closes and volumes for Apple",
   },
   {
-    sql: "SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk')",
+    sql: "SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk') ORDER BY timestamp",
     description: "One year of weekly closes for Microsoft",
   },
   {
@@ -92,7 +100,7 @@ const HISTORY_EXAMPLES = [
     description: "The 52-week high and low for SPY, aggregated from daily candles",
   },
   {
-    sql: "SELECT w.sym, max(h.close) AS high_close FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.history(w.sym, range := '1mo') h GROUP BY w.sym",
+    sql: "SELECT w.sym, max(h.close) AS high_close FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.history(w.sym, range := '1mo') h GROUP BY w.sym ORDER BY w.sym",
     description: "Highest close over the last month for every ticker in a table, via LATERAL",
   },
 ];
@@ -133,10 +141,15 @@ export function makeHistoryFunction(get: YahooGet) {
         "Candle width — how much time each bar spans. Intraday widths only work on recent ranges. Default '1d'.",
       prepost: "Include pre-market and post-market candles. Default false.",
       start_date:
-        "Inclusive start date 'YYYY-MM-DD'. When set, [start_date, end_date) overrides range. Empty = use range.",
-      end_date: "Exclusive end date 'YYYY-MM-DD'. Defaults to now when start_date is set.",
+        "Inclusive start date 'YYYY-MM-DD'. When set, [start_date, end_date) overrides range. Empty = use range. A malformed date fails the bind.",
+      end_date:
+        "Exclusive end date 'YYYY-MM-DD', after start_date. Defaults to now when start_date is set; setting it without start_date fails the bind.",
     },
-    onBind: () => ({ outputSchema: schema }),
+    onBind: (p) => {
+      // Fail the bind on a bad date instead of silently returning the default range.
+      validateHistoryDates(p.args.start_date || "", p.args.end_date || "");
+      return { outputSchema: schema };
+    },
     process: async (p, batch, out) => {
       const symbols: (string | null)[] = [];
       for (let row = 0; row < batch.numRows; row++) symbols.push(cellString(batch, "symbol", row));
@@ -179,7 +192,8 @@ export function makeHistoryFunction(get: YahooGet) {
         "Daily or intraday OHLCV candles for a single ticker over a chosen window. Use it for " +
         "price history, charting, returns, and technical analysis. Pick a named range (range := " +
         "'1y') with a candle width (bar := '1wk'), or an explicit start_date/end_date range. " +
-        "Thin or halted candles come back as NULL cells rather than failing the scan.",
+        "Thin or halted candles come back as NULL cells rather than failing the scan. The newest " +
+        "candle may still be forming: during a session its close is the latest live price.",
       "vgi.doc_md":
         "## history\n\n" +
         "Historical OHLCV candles for one ticker from Yahoo's chart feed. Choose a named `range` " +
@@ -188,7 +202,8 @@ export function makeHistoryFunction(get: YahooGet) {
         "pair to override `range`. Emits one row per candle, ordered oldest-first; thin or halted " +
         "candles come back with NULL price cells rather than failing the scan. Intraday bars are " +
         "only retained by Yahoo for recent windows, so an intraday `bar` on a long `range` yields " +
-        "fewer rows than the range implies. `adjclose` falls back to `close` when Yahoo omits it.",
+        "fewer rows than the range implies. `adjclose` falls back to `close` when Yahoo omits it. When Yahoo " +
+        "has not yet filled the newest candle's close, it is taken from the latest market price.",
       "vgi.result_columns_schema": JSON.stringify([
         { name: "symbol", type: "VARCHAR", description: "The ticker, echoed from Yahoo's chart metadata." },
         { name: "timestamp", type: "TIMESTAMP WITH TIME ZONE", description: "Candle open time, in UTC." },
@@ -219,13 +234,16 @@ const QUOTE_EXAMPLES = [
     description: "Snapshot quote for Apple",
   },
   {
-    sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')",
+    sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG') ORDER BY symbol",
     description: "Latest price for several symbols at once",
   },
   {
-    sql: "SELECT w.sym, q.regular_market_price FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.quote(w.sym) q",
+    sql: "SELECT w.sym, q.regular_market_price FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.quote(w.sym) q ORDER BY w.sym",
     description: "Latest price for every ticker in a table, via LATERAL",
   },
+  // Composed (quote drives, history / a second quote joins in) — see examples.ts.
+  QUOTE_VS_MONTH_AVERAGE,
+  FOREIGN_LISTINGS_IN_USD,
 ];
 
 export function makeQuoteFunction(get: YahooGet) {
@@ -285,8 +303,8 @@ export function makeQuoteFunction(get: YahooGet) {
         { name: "symbol", type: "VARCHAR", description: "The ticker the row describes." },
         { name: "short_name", type: "VARCHAR", description: "Short display name (e.g. 'Apple Inc.')." },
         { name: "long_name", type: "VARCHAR", description: "Full/long display name, when Yahoo provides one." },
-        { name: "currency", type: "VARCHAR", description: "ISO currency the price is quoted in (e.g. 'USD')." },
-        { name: "exchange", type: "VARCHAR", description: "Listing exchange code (e.g. 'NMS')." },
+        { name: "currency", type: "VARCHAR", description: "Currency the price is quoted in (e.g. 'USD'); London listings use 'GBp' (pence)." },
+        { name: "exchange", type: "VARCHAR", description: "Listing exchange name (e.g. 'NasdaqGS', 'XETRA')." },
         { name: "quote_type", type: "VARCHAR", description: "Instrument type: EQUITY, ETF, INDEX, CRYPTOCURRENCY, …" },
         { name: "regular_market_price", type: "DOUBLE", description: "Last regular-session price." },
         {
@@ -329,17 +347,20 @@ interface SearchArgs {
 // Shared by the native `examples` field and the `vgi.example_queries` tag — see HISTORY_EXAMPLES.
 const SEARCH_EXAMPLES = [
   {
-    sql: "SELECT symbol, short_name, exchange FROM yfinance.main.search('apple')",
+    sql: "SELECT symbol, short_name, exchange FROM yfinance.main.search('apple') ORDER BY score DESC, symbol",
     description: "Find symbols matching 'apple'",
   },
   {
-    sql: "SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20)",
+    sql: "SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20) ORDER BY score DESC, symbol",
     description: "Up to 20 candidate symbols for a query",
   },
   {
-    sql: "SELECT c.name, s.symbol FROM (VALUES ('apple'), ('microsoft')) c(name), LATERAL yfinance.main.search(c.name, count := 1) s",
+    sql: "SELECT c.name, s.symbol FROM (VALUES ('apple'), ('microsoft')) c(name), LATERAL yfinance.main.search(c.name, count := 1) s ORDER BY c.name",
     description: "Best-matching ticker for every company name in a table, via LATERAL",
   },
+  // Composed (search drives, history / quote consume the resolved symbol) — see examples.ts.
+  NAMES_TO_TOTAL_RETURN,
+  NAMES_TO_LIVE_QUOTE,
 ];
 
 export function makeSearchFunction(get: YahooGet) {
@@ -360,14 +381,16 @@ export function makeSearchFunction(get: YahooGet) {
     },
     onBind: () => ({ outputSchema: schema }),
     process: async (p, batch, out) => {
-      const count = Number(p.args.count ?? 8);
+      // NULL -> the default; any other value is clamped to [1, 50] as documented (count := 0
+      // used to silently fall back to the default 8).
+      const count = clampSearchCount(p.args.count);
       const queries: (string | null)[] = [];
       for (let row = 0; row < batch.numRows; row++) queries.push(cellString(batch, "query", row));
 
       // One search request per DISTINCT query in the chunk, bounded in flight. An HTTP
       // error fails the scan, as the literal form does; no match is simply zero rows.
       const distinct = [...new Set(queries.filter((q): q is string => q !== null))];
-      const fetched = await mapLimit(distinct, MAX_CONCURRENCY, (q) => fetchSearch(get, q, count > 0 ? count : 8));
+      const fetched = await mapLimit(distinct, MAX_CONCURRENCY, (q) => fetchSearch(get, q, count));
       const byQuery = new Map(distinct.map((q, i) => [q, fetched[i]!]));
 
       const rows: SearchRow[] = [];

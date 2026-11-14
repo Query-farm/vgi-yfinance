@@ -57,3 +57,24 @@ ORDER BY c.name;
 ----
 apple	AAPL
 microsoft	MSFT
+
+# Regression: count := 0 used to fall back to the default 8; it now clamps to 1.
+query I
+SELECT count(*) FROM yf.search('apple', count := 0);
+----
+1
+
+# --- Composition: search output feeds quote and history via chained LATERAL. ---
+
+query TTI
+WITH pick AS (
+  SELECT c.name, s.symbol
+  FROM (VALUES ('apple'), ('microsoft')) c(name), LATERAL yf.search(c.name, count := 5) s
+  WHERE s.quote_type = 'EQUITY'
+  QUALIFY row_number() OVER (PARTITION BY c.name ORDER BY s.score DESC) = 1)
+SELECT p.name, p.symbol, (count(*) > 0 AND bool_and(h.adjclose > 0) AND min(q.regular_market_price) > 0)::INT
+FROM pick p, LATERAL yf.quote(p.symbol) q, LATERAL yf.history(p.symbol, range := '5d') h
+GROUP BY p.name, p.symbol ORDER BY p.name;
+----
+apple	AAPL	1
+microsoft	MSFT	1

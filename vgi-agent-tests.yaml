@@ -3,53 +3,85 @@
 # grader fields are keyed by that name and never sent to the analyst agent.
 #
 # Grading uses the strongest oracle present: reference_sql (exact result-set compare) →
-# check_sql (boolean assertion) → success_criteria (LLM judge). Every task uses a
-# deterministic check_sql asserting the specific ground truth, and deliberately OMITS
-# reference_sql: an exact compare is unusable here because (a) live prices move between
-# runs and (b) a free-form analyst rarely reproduces the reference query's exact
-# column/row shape — and a reference_sql would win over check_sql. check_sql also drives
-# object coverage; success_criteria records what a correct answer looks like.
+# check_sql (boolean assertion) → success_criteria (LLM judge). reference_sql is unusable
+# here: live prices move between runs and a free-form analyst rarely reproduces a reference
+# query's exact shape. So every task is graded by check_sql.
+#
+# check_sql runs on the analyst's own session after it answers, so each prompt asks the
+# analyst to save its answer as a named TEMPORARY VIEW with pinned columns, and check_sql
+# compares that view with ground truth recomputed live at grading time (with small
+# tolerances for prices that tick in between). A wrong answer, a missing view, or a view
+# with the wrong columns fails the task — the grader never passes "whatever the agent says".
+# Questions are chosen to have well-separated answers, not near-ties that flip with ticks.
 tasks:
   - name: microsoft_ticker
-    check_sql: SELECT count(*) > 0 FROM yfinance.main.search('microsoft') WHERE symbol = 'MSFT'
+    # Ground truth is re-derived from search, so the grader also fails if Yahoo stops
+    # resolving the name (rather than grading against a stale hard-coded answer alone).
+    check_sql: >-
+      SELECT count(*) = 1 AND bool_and(a.symbol = 'MSFT')
+             AND (SELECT count(*) FROM yfinance.main.search('microsoft corporation')
+                  WHERE symbol = 'MSFT' AND quote_type = 'EQUITY') = 1
+      FROM msft_answer a
     success_criteria: The answer identifies MSFT as Microsoft's ticker, found via the search function.
 
   - name: apple_currency
-    check_sql: SELECT count(*) > 0 FROM yfinance.main.quote('AAPL') WHERE currency = 'USD'
+    check_sql: >-
+      SELECT count(*) = 1 AND bool_and(a.currency = q.currency)
+      FROM aapl_currency a, yfinance.main.quote('AAPL') q
     success_criteria: The answer states AAPL is priced in USD, obtained from the quote function.
 
+  # Truth = the newest non-NULL daily close in history (which also matches quote's last
+  # price once the session has closed). 0.1% tolerance absorbs ticks while the market is open.
   - name: apple_recent_close
-    check_sql: SELECT count(*) > 0 FROM yfinance.main.history('AAPL', range := '5d')
-    success_criteria: >-
-      The answer reports a plausible recent AAPL daily closing price obtained from the
-      history function.
-
-  # Composed tasks: the natural solution chains two objects (search -> history,
-  # symbol_reference -> quote). check_sql asserts the chain itself resolves on live data.
-  - name: nvidia_vs_month_average
     check_sql: >-
-      SELECT count(*) > 0 FROM yfinance.main.search('nvidia', count := 1) s,
-      LATERAL yfinance.main.history(s.symbol, range := '1mo') h
-      WHERE s.symbol = 'NVDA' AND h.close IS NOT NULL
+      WITH t AS (SELECT arg_max(close, timestamp) AS close
+                 FROM yfinance.main.history('AAPL', range := '5d') WHERE close IS NOT NULL)
+      SELECT count(*) = 1 AND bool_and(abs(a.close / t.close - 1) < 0.001)
+      FROM aapl_last_close a, t
     success_criteria: >-
-      The answer resolves NVIDIA to NVDA via search, then uses NVDA's one-month history to
-      compare the latest close with the one-month average close, stating above/below and
-      the size of the gap.
+      The answer reports AAPL's latest daily close from the history function.
 
-  - name: etf_nearest_52w_high
+  # Composed: search (name -> NVDA) then history (6-month window). Drawdown is well away
+  # from zero, so a sign error, the wrong window's high, or a live-quote price all fail.
+  - name: nvidia_drawdown_6mo
     check_sql: >-
-      SELECT count(*) = 2 FROM yfinance.main.symbol_reference r,
-      LATERAL yfinance.main.quote(r.symbol) q
-      WHERE r.asset_type = 'ETF' AND q.fifty_two_week_high IS NOT NULL
+      WITH t AS (SELECT max(close) AS hi, arg_max(close, timestamp) AS last
+                 FROM yfinance.main.history('NVDA', range := '6mo') WHERE close IS NOT NULL)
+      SELECT count(*) = 1 AND bool_and(
+               a.symbol = 'NVDA'
+               AND abs(a.high_close / t.hi - 1) < 0.01
+               AND abs(a.last_close / t.last - 1) < 0.002
+               AND abs(a.pct_below_high - 100 * (1 - t.last / t.hi)) < 1.0)
+      FROM nvda_drawdown a, t
     success_criteria: >-
-      The answer takes the ETF rows of symbol_reference (SPY and VOO), quotes them, and names
-      the one whose current price is closest to its 52-week high (by percentage gap), with
-      the supporting figures.
+      The answer resolves NVIDIA to NVDA via search, then uses six months of NVDA daily
+      history to report the highest close, the latest close, and the percentage gap.
+
+  # Composed: search/quote finds the XETRA listing (SAP.DE) and the NYSE one (SAP), and a
+  # second quote supplies the EUR/USD rate (EURUSD=X, or 1 / EUR=X). An inverted rate is
+  # ~20% off, so it fails the 0.5% tolerance.
+  - name: sap_xetra_vs_nyse
+    check_sql: >-
+      WITH d AS (SELECT regular_market_price AS eur FROM yfinance.main.quote('SAP.DE')),
+           fx AS (SELECT regular_market_price AS rate FROM yfinance.main.quote('EURUSD=X')),
+           n AS (SELECT regular_market_price AS usd FROM yfinance.main.quote('SAP'))
+      SELECT count(*) = 1 AND bool_and(
+               abs(a.xetra_eur / d.eur - 1) < 0.002
+               AND abs(a.usd_per_eur / fx.rate - 1) < 0.005
+               AND abs(a.xetra_usd / (d.eur * fx.rate) - 1) < 0.005
+               AND abs(a.nyse_usd / n.usd - 1) < 0.002
+               AND abs(a.premium_pct - 100 * (n.usd / (d.eur * fx.rate) - 1)) < 0.2)
+      FROM sap_usd a, d, fx, n
+    success_criteria: >-
+      The answer quotes SAP.DE (EUR) and SAP (USD), converts the XETRA price with the
+      EUR/USD rate, and reports the NYSE premium or discount in percent.
 
   - name: class_share_symbol_format
     check_sql: >-
-      SELECT count(*) > 0 FROM yfinance.main.symbol_reference
-      WHERE symbol = 'BRK-B' AND asset_type = 'EQUITY'
+      SELECT count(*) = 1 AND bool_and(a.symbol = 'BRK-B')
+             AND (SELECT count(*) FROM yfinance.main.symbol_reference
+                  WHERE symbol = 'BRK-B' AND asset_type = 'EQUITY') = 1
+      FROM class_share a
     success_criteria: >-
       The answer identifies BRK-B (Berkshire Hathaway Class B) as the hyphenated
       class-share example, found in the symbol_reference view.

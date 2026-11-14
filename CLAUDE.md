@@ -56,16 +56,19 @@ built on `@query-farm/vgi` (the TS SDK). Keyless — no secret type, no auth.
 
 ```bash
 bun install
-bun test            # 30 tests: pure driver (SDK-free) + Arrow batch builders + HTTP-transport E2E
+bun test            # unit tests: pure driver (SDK-free) + Arrow batch builders + HTTP-transport E2E
 bun run typecheck   # own-source only; scripts/typecheck.sh filters node_modules errors
-./run_tests.sh      # haybarn SQLLogic E2E: worker under real DuckDB + community vgi ext
+./run_tests.sh      # haybarn SQLLogic E2E (test/sql/*.test): worker under real DuckDB + community vgi ext
+uvx --prerelease allow --from 'vgi-lint-check>=2.5.1' vgi-lint lint --execute --execute-mode run  # reads vgi-lint.toml
 ```
 
 `run_tests.sh` uses uv to run matching `haybarn-cli` / `haybarn-unittest` 2.0.0rc11
 packages and refreshes the signed community vgi extension for protocol 3.3. It sets
 `VGI_TEST_WORKER=bin/vgi-yfinance-worker` (override it with a URL to run the same suite
 over HTTP, e.g. `VGI_TEST_WORKER=http://localhost:8787 ./run_tests.sh`) and
-`VGI_WORKER_CATALOG_NAME=yfinance`. Each `.test` explicitly loads httpfs and clears
+`VGI_WORKER_CATALOG_NAME=yfinance`. `VGI_UNITTEST=/path/to/haybarn-unittest` swaps in a
+locally installed 2.0 runner (`--keep-home` is still passed — without it Haybarn 2.0
+isolates `$HOME` and `LOAD httpfs` fails with "extension not found"). Each `.test` explicitly loads httpfs and clears
 DuckDB's default ignored-error list, so HTTP failures cannot become successful skips.
 The suite combines schema checks with live Yahoo invariants. CI runs it alongside
 unit tests, typecheck, metadata lint, and a Cloudflare deploy dry run.
@@ -78,8 +81,8 @@ Typecheck must be a `bash scripts/typecheck.sh` file (not an inline package.json
 
 `src/cf.ts` + `wrangler.toml`: `bun run cf:dev` (local workerd on :8787), `bun run
 cf:deploy`. The `workerd` export condition selects flechette automatically — the bundle
-contains no apache-arrow (~706 KiB gzip at vgi 0.36.2; check with `bunx wrangler deploy
---dry-run --outdir <dir>`). Before the first real deploy set the state-token key once:
+contains no apache-arrow (check the size with `bunx wrangler deploy --dry-run --outdir <dir>`;
+CI runs that dry run). Before the first real deploy set the state-token key once:
 `bun run cf:secret` (random 32-byte hex → `wrangler secret put VGI_SIGNING_KEY`). A stable
 key is REQUIRED — isolates don't share memory, so bind→scan landing on two isolates fails
 without it. `createVgiFetch` needs `landingInfo` passed explicitly (serveVgiWorker derives it
@@ -95,20 +98,20 @@ extension then fails ATTACH with *"capability discovery failed (HTTP 404)"* — 
 ## DuckDB (manual)
 
 ```sql
+-- Haybarn 2.0: INSTALL vgi FROM community; once, then
 LOAD vgi;
 ATTACH 'yfinance' AS yf (TYPE vgi, LOCATION '/path/to/vgi-yfinance/bin/vgi-yfinance-worker');
-SELECT * FROM yf.history('AAPL', range := '6mo');
+SELECT timestamp, close FROM yf.history('AAPL', range := '6mo') ORDER BY timestamp;
 ```
 
-Not yet covered by a haybarn `.test` (no DuckDB-live E2E). If adding one, mirror the
-`.test` layout under a built `vgi` extension per the vgi-typescript CLAUDE.md.
+The haybarn SQLLogic suite in `test/sql/` covers this path (see Commands).
 
 ## SDK dependency (@query-farm/vgi ^0.50.0, protocol 3.3)
 
 Depends on `@query-farm/vgi ^0.50.0` from npm, with peers `@query-farm/apache-arrow ^21.1.1`
 + `@query-farm/vgi-rpc ^0.29.7` (single arrow copy → no dual-instance "Unrecognized type
-NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.47.x declares a peer range of
-`^0.29.2` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
+NONE"). The vgi/vgi-rpc pair is version-locked — vgi 0.50.0 declares a peer range of
+`^0.29.7` on vgi-rpc — so bump BOTH together or `bun install` reports a peer
 conflict. 0.29 also made `createVgiFetch`'s `landingInfo` REQUIRED (worker name/doc/version
 for the `GET {prefix}/` landing surface); `test/http-transport.test.ts` passes it. If a
 fresh `bun install` can't find a newer published version, clear the stale registry cache:
@@ -126,8 +129,25 @@ args `interval` or `end` — both are reserved (`INTERVAL` type, `CASE…END`). 
 and `end_date` (+ `start_date` for symmetry). Positional args don't help — every arg but the
 leading `symbol` is named-only. Before naming a new arg, check it isn't a DuckDB keyword.
 
+## Examples and agent tasks
+
+- Composed examples (2+ objects in one query) live once in `src/examples.ts` and are
+  referenced from the schema-level `vgi.example_queries` AND the driving object's own list
+  (search / quote / symbol_reference), within its first five entries — the vgi-lint agent
+  simulator only shows describe_function/describe_table examples. Don't copy the SQL.
+- `vgi-agent-tests.yaml` graders: each prompt asks the analyst to save its answer as a
+  named TEMPORARY VIEW with pinned columns; `check_sql` runs on the analyst's session and
+  compares that view with live ground truth (small tolerances). Never write a check_sql
+  that only proves the data is live — it passes whatever the agent answers.
+- Every function must appear in some `check_sql` (VGI520 test coverage).
+
 ## Gotchas
 
+- `history`'s newest candle: Yahoo often leaves its close NULL (even after the session
+  ends) while `meta.regularMarketPrice` has the price; `parseChart` fills that one cell.
+- `history` validates `start_date`/`end_date` at bind (malformed, lone end_date, inverted
+  range → error); they used to be ignored silently.
+- `search` `count` is clamped to [1, 50]; NULL means the default 8 (`clampSearchCount`).
 - Emit `bigint` (not `number`) for `Int64`/`Timestamp` columns via `batchFromColumns`.
 - `quote` fans out one request per distinct symbol (`fetchQuoteMap`, bounded by
   `mapLimit`); a per-symbol throw is caught and that symbol dropped — keep that resilience.

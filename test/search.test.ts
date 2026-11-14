@@ -2,7 +2,7 @@
 // Proves the wire URL + count clamping, that news is dropped, and field mapping.
 
 import { test, expect } from "bun:test";
-import { searchUrl, parseSearch, fetchSearch } from "../src/yahoo.js";
+import { searchUrl, parseSearch, fetchSearch, clampSearchCount } from "../src/yahoo.js";
 import { FakeYahoo, searchEnvelope } from "./fake-yahoo.js";
 
 test("searchUrl carries the query, requests no news, clamps count to [1,50]", () => {
@@ -44,4 +44,16 @@ test("fetchSearch short-circuits an empty query, else hits the search URL", asyn
   const rows = await fetchSearch(fake.get, "apple", 8);
   expect(rows.length).toBe(2);
   expect(fake.calls[0]!).toContain("/v1/finance/search");
+});
+
+// Regression: count := 0 (or a negative count) used to fall back to the default 8
+// candidates instead of clamping to 1 as documented.
+test("clampSearchCount: NULL -> default 8, otherwise clamped to [1, 50]", () => {
+  expect(clampSearchCount(undefined)).toBe(8);
+  expect(clampSearchCount(null)).toBe(8);
+  expect(clampSearchCount(0)).toBe(1);
+  expect(clampSearchCount(-5)).toBe(1);
+  expect(clampSearchCount(3n)).toBe(3);
+  expect(clampSearchCount(999)).toBe(50);
+  expect(clampSearchCount(Number.NaN)).toBe(8);
 });

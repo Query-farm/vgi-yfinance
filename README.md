@@ -98,8 +98,9 @@ FROM yf.history('SPY', start_date := '2024-01-01', end_date := '2024-12-31');
 
 -- Every ticker in a table, via LATERAL (the symbol may be a column):
 SELECT w.sym, max(h.close) AS high_close
-FROM watchlist w, LATERAL yf.history(w.sym, range := '1mo') h
-GROUP BY w.sym;
+FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yf.history(w.sym, range := '1mo') h
+GROUP BY w.sym
+ORDER BY w.sym;
 ```
 
 | Arg | Default | Notes |
@@ -108,11 +109,12 @@ GROUP BY w.sym;
 | `range` | `'1mo'` | `1d 5d 1mo 3mo 6mo 1y 2y 5y 10y ytd max`. Ignored when `start_date` is set. |
 | `bar` | `'1d'` | Candle width (Yahoo's `interval`): `1m 2m 5m 15m 30m 60m 90m 1h 1d 5d 1wk 1mo 3mo`. Named `bar`, not `interval`, because `INTERVAL` is a reserved SQL keyword. |
 | `prepost` | `false` | Include pre/post-market candles. |
-| `start_date` / `end_date` | `''` | `YYYY-MM-DD`. When `start_date` is set, `[start_date, end_date)` overrides `range`; `end_date` defaults to now. (Named `*_date` because `END` is a reserved SQL keyword.) |
+| `start_date` / `end_date` | `''` | `YYYY-MM-DD`. When `start_date` is set, `[start_date, end_date)` overrides `range`; `end_date` defaults to now. A malformed date, an `end_date` without `start_date`, or an `end_date` not after `start_date` fails the query. (Named `*_date` because `END` is a reserved SQL keyword.) |
 
-Columns: `symbol`, `timestamp` (`TIMESTAMP` UTC), `open`, `high`, `low`, `close`,
-`adjclose` (`DOUBLE`), `volume` (`BIGINT`). Thin/halted candles come back as `NULL`
-cells, never a crash.
+Columns: `symbol`, `timestamp` (`TIMESTAMP WITH TIME ZONE`, UTC), `open`, `high`, `low`,
+`close`, `adjclose` (`DOUBLE`), `volume` (`BIGINT`). Thin/halted candles come back as `NULL`
+cells, never a crash. Yahoo often leaves the newest candle's `close` empty for a while, even
+after the session ends; the worker fills that one cell from the latest market price.
 
 History results advertise a **60-second client-cache lifetime**, with per-symbol
 reuse enabled on the correlated `LATERAL` path. Matching calls can reuse a response
@@ -128,11 +130,13 @@ short-lived snapshot, not a promise that historical prices never change.
 
 ```sql
 SELECT symbol, regular_market_price, regular_market_change_percent
-FROM yf.quote('AAPL,MSFT,GOOG');
+FROM yf.quote('AAPL,MSFT,GOOG')
+ORDER BY symbol;
 
 -- One quote per row of a table, via LATERAL:
 SELECT w.sym, q.regular_market_price
-FROM watchlist w, LATERAL yf.quote(w.sym) q;
+FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yf.quote(w.sym) q
+ORDER BY w.sym;
 ```
 
 `symbols` is a comma/space-separated list, as a literal or a column (`LATERAL`). One
@@ -144,40 +148,52 @@ dropped rather than failing the batch. Columns:
 `regular_market_previous_close`, `fifty_two_week_high`, `fifty_two_week_low`,
 `regular_market_time`.
 
+`currency` is the quote currency as Yahoo reports it; London listings use `GBp` (pence).
 `market cap` is not available on the keyless plane and is intentionally not emitted.
 
 ### Search — symbol lookup
 
 ```sql
 SELECT symbol, long_name, exchange, quote_type
-FROM yf.search('vanguard', count := 20);
+FROM yf.search('vanguard', count := 20)
+ORDER BY score DESC;
 
 -- The best-matching ticker for every company name in a table, via LATERAL:
 SELECT c.name, s.symbol
-FROM companies c, LATERAL yf.search(c.name, count := 1) s;
+FROM (VALUES ('apple'), ('microsoft')) c(name), LATERAL yf.search(c.name, count := 1) s
+ORDER BY c.name;
 ```
 
 Columns: `symbol`, `short_name`, `long_name`, `exchange`, `quote_type`, `type_disp`,
 `score`. `query` may be a literal or a column (`LATERAL`); `count` (default 8, per query) is
-clamped to `[1, 50]`; news results are dropped.
+clamped to `[1, 50]`; news results are dropped. Yahoo's top hit is not always a stock:
+`search('apple')` ranks Apple's CME stock futures (`SAAPL=F`, …) right after `AAPL`, so filter on
+`quote_type = 'EQUITY'` when you want the company's shares.
 
 ### Combining functions
 
-The functions compose: feed one's output into another with `LATERAL`, and join the
-results with plain SQL. Go from company names to a performance ranking without knowing
-any tickers — `search` resolves each name, `history` supplies the closes:
+The functions compose: any of them can read its input from a column with `LATERAL`, so
+one function's output feeds the next, and plain SQL joins the results. These are the
+same composed examples the catalog publishes (written with the `yf` alias).
+
+Rank companies by three-month total return starting from their names — `search`
+resolves each name to its top-scoring stock, `history` supplies dividend-adjusted closes:
 
 ```sql
-SELECT c.name, s.symbol,
-       round(100 * (arg_max(h.close, h.timestamp) / arg_min(h.close, h.timestamp) - 1), 2) AS return_3mo_pct
-FROM (VALUES ('apple'), ('nvidia'), ('costco')) c(name),
-     LATERAL yf.search(c.name, count := 1) s,
-     LATERAL yf.history(s.symbol, range := '3mo') h
-GROUP BY c.name, s.symbol
-ORDER BY return_3mo_pct DESC, c.name;
+WITH pick AS (
+  SELECT c.name, s.symbol
+  FROM (VALUES ('apple'), ('costco'), ('walmart')) c(name),
+       LATERAL yf.search(c.name, count := 5) s
+  WHERE s.quote_type = 'EQUITY'
+  QUALIFY row_number() OVER (PARTITION BY c.name ORDER BY s.score DESC) = 1)
+SELECT p.name, p.symbol,
+       round(100 * (arg_max(h.adjclose, h.timestamp) / arg_min(h.adjclose, h.timestamp) - 1), 2) AS total_return_3mo_pct
+FROM pick p, LATERAL yf.history(p.symbol, range := '3mo') h
+GROUP BY p.name, p.symbol
+ORDER BY total_return_3mo_pct DESC, p.name;
 ```
 
-Or compare each live `quote` with its own one-month average close from `history`:
+Compare each live `quote` with the average of its daily closes over the past month:
 
 ```sql
 WITH q AS (SELECT symbol, regular_market_price FROM yf.quote('AAPL,MSFT,GOOG')),
@@ -187,18 +203,40 @@ WITH q AS (SELECT symbol, regular_market_price FROM yf.quote('AAPL,MSFT,GOOG')),
 SELECT q.symbol, q.regular_market_price, round(m.avg_close_1mo, 2) AS avg_close_1mo,
        round(100 * (q.regular_market_price / m.avg_close_1mo - 1), 2) AS pct_vs_1mo_avg
 FROM q JOIN m USING (symbol)
-ORDER BY pct_vs_1mo_avg DESC;
+ORDER BY pct_vs_1mo_avg DESC, q.symbol;
+```
+
+Price foreign listings in US dollars — the second `quote` fetches the FX pair named by
+each listing's own `currency` (`EUR=X` is euros per dollar):
+
+```sql
+SELECT l.symbol, l.currency, l.regular_market_price AS local_price, fx.symbol AS fx_pair,
+       round(l.regular_market_price / fx.regular_market_price, 2) AS price_usd
+FROM yf.quote('ASML.AS,MC.PA,7203.T,NESN.SW') l,
+     LATERAL yf.quote(l.currency || '=X') fx
+ORDER BY price_usd DESC, l.symbol;
 ```
 
 The static `yf.symbol_reference` registry (one valid ticker per Yahoo symbol convention,
-no network) is a ready-made input: `LATERAL yf.quote(r.symbol)` over it prices every
-asset class at once.
+no network) is a ready-made input. Place every asset class in its 52-week range:
+
+```sql
+SELECT r.asset_type, r.symbol, q.regular_market_price,
+       round(100 * (q.regular_market_price - q.fifty_two_week_low)
+             / nullif(q.fifty_two_week_high - q.fifty_two_week_low, 0), 1) AS pct_of_52w_range
+FROM yf.symbol_reference r, LATERAL yf.quote(r.symbol) q
+ORDER BY r.asset_type, pct_of_52w_range DESC, r.symbol;
+```
+
+The catalog also ships a name-to-live-price lookup (`search` → `quote`) and a six-month
+return correlation of the registry's equities and ETFs with the S&P 500 (`symbol_reference`
+→ `history`); see `src/examples.ts`.
 
 ## Development
 
 ```bash
 bun install
-bun test            # unit tests (pure driver + Arrow batch builders)
+bun test            # unit tests (pure driver + Arrow batch builders + HTTP transport)
 bun run typecheck   # own-source typecheck (see scripts/typecheck.sh)
 ./run_tests.sh      # haybarn SQLLogic E2E under a real DuckDB + the community vgi extension
 ```
@@ -212,11 +250,15 @@ and current signed VGI extension:
 
 Metadata quality is graded by [`vgi-lint`](https://github.com/Query-farm/vgi-lint-check)
 (catalog/function docs, tags, per-argument docs, examples, and an agent-suitability suite);
-CI runs it as a gate. Locally:
+CI runs it as a gate. Locally (reads `vgi-lint.toml`; `--execute` also runs every example
+against Yahoo):
 
 ```bash
-uvx --prerelease allow --from vgi-lint-check vgi-lint bin/vgi-yfinance-worker --fail-on info
+uvx --prerelease allow --from 'vgi-lint-check>=2.5.1' vgi-lint lint --execute --execute-mode run
 ```
+
+The agent-suitability graders live in `vgi-agent-tests.yaml`. Each task asks the analyst to
+save its answer as a temporary view, and the grader compares that view with live ground truth.
 
 The pure request/response logic lives in `src/yahoo.ts` and is fully unit-tested against
 an in-process fake (`test/fake-yahoo.ts`) — no network. The single module that touches
@@ -229,10 +271,14 @@ is verified live rather than in the unit suite.
 src/yahoo.ts      Pure driver: URL builders + response→row mappers (no network, no SDK)
 src/client.ts     Real fetch client (User-Agent; keyless — no crumb/cookie needed)
 src/schema.ts     Typed Arrow output schemas + row→batch builders
-src/functions.ts  The three defineTableFunction() definitions
-src/catalog.ts    The `yfinance` catalog descriptor (no secret type — keyless)
-src/worker.ts     Worker entry: wires the real client into the functions
+src/functions.ts  The three defineRowTransformFunction() definitions (LATERAL-capable)
+src/examples.ts   Composed example queries (shared by the catalog and the functions)
+src/catalog.ts    The `yfinance` catalog descriptor + symbol_reference view (no secret type)
+src/worker.ts     Stdio worker entry: wires the real client into the functions
+src/cf.ts         Cloudflare Worker entry (same wiring, HTTP transport)
+scripts/serve.ts  Bun HTTP entry (same wiring)
 bin/…-worker      Launch wrapper (bun run src/worker.ts) for DuckDB ATTACH
+test/             Unit tests (bun test) + test/sql/ SQLLogic E2E (./run_tests.sh)
 ```
 
 ## Data source & terms

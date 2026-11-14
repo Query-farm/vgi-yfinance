@@ -1,26 +1,17 @@
 // The `yfinance` catalog descriptor + its metadata tags (the vgi.* discovery/doc
 // channels vgi-lint grades). Yahoo Finance's public endpoints are KEYLESS, so — unlike
-// the azure workers — there is NO secret type here. The only server-side state the real
-// client keeps is an in-process consent-cookie/crumb cache (client.ts), re-derivable and
-// never on the wire, so it is not part of the catalog contract.
+// the azure workers — there is NO secret type here. The real client (client.ts) keeps no
+// state at all: no crumb, no cookie, no cache.
 //
 // Tag shapes follow vgi-lint's TAGS.md: JSON-valued tags (keywords/categories/
 // executable_examples/agent_test_tasks) are JSON strings; all example SQL is
 // catalog-qualified (yfinance.main.<fn>) so it binds/runs when the catalog is attached.
 
 import type { CatalogDescriptor, VgiFunction, ViewDescriptor } from "@query-farm/vgi";
+import { COMPOSED_EXAMPLES, REFERENCE_52W_POSITION, REFERENCE_CORRELATION_SP500 } from "./examples.js";
 
 const REPO = "https://github.com/Query-farm/vgi-yfinance";
 const ISSUES = `${REPO}/issues`;
-
-// Composed example: symbol_reference (static registry) LATERAL-joined to quote (live
-// snapshot). Shown at schema level AND guaranteed-runnable at catalog level, so one constant
-// keeps the two SQL strings byte-identical.
-const REFERENCE_52W_POSITION_SQL =
-  "SELECT r.asset_type, r.symbol, q.regular_market_price, " +
-  "round(100 * (q.regular_market_price - q.fifty_two_week_low) / (q.fifty_two_week_high - q.fifty_two_week_low), 1) AS pct_of_52w_range " +
-  "FROM yfinance.main.symbol_reference r, LATERAL yfinance.main.quote(r.symbol) q " +
-  "ORDER BY r.asset_type, pct_of_52w_range DESC, r.symbol";
 
 /** Catalog-level tags: docs, discovery, provenance, and the agent-test suite. */
 const CATALOG_TAGS: Record<string, string> = {
@@ -63,19 +54,12 @@ const CATALOG_TAGS: Record<string, string> = {
     {
       name: "search_symbol",
       description: "Resolve a company name to candidate tickers",
-      sql: "SELECT symbol, short_name FROM yfinance.main.search('apple') LIMIT 3",
+      sql: "SELECT symbol, short_name FROM yfinance.main.search('apple') ORDER BY score DESC, symbol LIMIT 3",
     },
     {
       name: "recent_history",
       description: "Fetch the last few daily candles for a ticker",
       sql: "SELECT timestamp, close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp",
-    },
-    {
-      name: "reference_52w_position",
-      description:
-        "Quote every instrument in the symbol_reference registry and place it in its 52-week range — " +
-        "the registry supplies valid tickers of every asset type, quote supplies the live prices",
-      sql: REFERENCE_52W_POSITION_SQL,
     },
   ]),
   // The agent-suitability suite (catalog only). The published tag carries ONLY `name` +
@@ -84,30 +68,45 @@ const CATALOG_TAGS: Record<string, string> = {
   "vgi.agent_test_tasks": JSON.stringify([
     {
       name: "microsoft_ticker",
-      prompt: "What stock ticker symbol does Microsoft Corporation trade under?",
+      prompt:
+        "What stock ticker symbol does Microsoft Corporation's common stock trade under in the US? " +
+        "Save your answer as a temporary view named msft_answer with one VARCHAR column, symbol.",
     },
     {
       name: "apple_currency",
-      prompt: "In what currency is Apple (AAPL) stock priced?",
+      prompt:
+        "In what currency is Apple (AAPL) stock priced? Save your answer as a temporary view named " +
+        "aapl_currency with one VARCHAR column, currency, holding the currency code.",
     },
     {
       name: "apple_recent_close",
-      prompt: "What was Apple's (AAPL) closing price on the most recent trading day?",
+      prompt:
+        "What is Apple's (AAPL) closing price for the most recent trading day in its daily price history? " +
+        "Save your answer as a temporary view named aapl_last_close with one row and one DOUBLE column, close.",
     },
     {
-      name: "nvidia_vs_month_average",
+      name: "nvidia_drawdown_6mo",
       prompt:
-        "Find NVIDIA's ticker by its company name, then tell me whether its latest daily close is above or below its average close over the past month, and by how much.",
+        "Find NVIDIA's ticker by searching for the company name, then use its daily price history over the " +
+        "last six months to work out how far its latest close is below its highest close in that window. " +
+        "Save the answer as a temporary view named nvda_drawdown with one row and columns symbol (VARCHAR), " +
+        "high_close, last_close and pct_below_high (all DOUBLE; pct_below_high is a positive percentage, " +
+        "e.g. 12.5 means 12.5% below the high).",
     },
     {
-      name: "etf_nearest_52w_high",
+      name: "sap_xetra_vs_nyse",
       prompt:
-        "Of the ETFs listed in this catalog's symbol reference, which one is currently trading closest to its 52-week high?",
+        "SAP SE trades on Germany's XETRA exchange in euros and on the NYSE in US dollars. Convert the current " +
+        "XETRA share price to US dollars at the current EUR/USD exchange rate and compare it with the NYSE price. " +
+        "Save the answer as a temporary view named sap_usd with one row and DOUBLE columns xetra_eur, " +
+        "usd_per_eur, xetra_usd, nyse_usd and premium_pct, where premium_pct = (nyse_usd / xetra_usd - 1) * 100.",
     },
     {
       name: "class_share_symbol_format",
       prompt:
-        "Yahoo Finance writes class shares (like Berkshire Hathaway's Class B) with a special symbol format. Which ticker in this catalog's symbol reference illustrates that convention?",
+        "Yahoo Finance writes class shares (like Berkshire Hathaway's Class B) with a special symbol format. " +
+        "Which ticker in this catalog's symbol reference illustrates that convention? Save your answer as a " +
+        "temporary view named class_share with one VARCHAR column, symbol.",
     },
   ]),
 };
@@ -125,7 +124,9 @@ const SCHEMA_TAGS: Record<string, string> = {
     "Time series of OHLCV candles, one-row-per-symbol pricing snapshots, and ticker lookup. " +
     "Use the time series for charting, returns and backtests; the snapshots for dashboards and " +
     "watchlists; and the lookup when you only know a company name.\n\n" +
-    "Everything is keyless and takes a ticker (or a comma-separated list) plus optional named arguments. " +
+    "Everything is keyless. `history` takes one ticker, `quote` one ticker or a comma-separated list, and " +
+    "`search` free text, each plus optional named arguments; any of them can read its input from a column " +
+    "with `LATERAL`, so one function's output can feed the next. " +
     "Symbols follow Yahoo's convention (e.g. `AAPL`, `BRK-B`, `BTC-USD`, `^GSPC`).",
   "vgi.keywords": JSON.stringify(["price history", "candles", "snapshot quote", "symbol lookup", "OHLCV"]),
   domain: "finance",
@@ -143,56 +144,21 @@ const SCHEMA_TAGS: Record<string, string> = {
     },
   ]),
   "vgi.example_queries": JSON.stringify([
-    { description: "Last month of daily candles for Apple", sql: "SELECT * FROM yfinance.main.history('AAPL')" },
+    {
+      description: "Last month of daily candles for Apple, oldest first",
+      sql: "SELECT timestamp, open, high, low, close, volume FROM yfinance.main.history('AAPL') ORDER BY timestamp",
+    },
     {
       description: "Current price for several megacaps at once",
-      sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')",
+      sql: "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG') ORDER BY symbol",
     },
     {
-      description: "Find a ticker by company name",
-      sql: "SELECT symbol, long_name FROM yfinance.main.search('vanguard')",
+      description: "Find a ticker by company name, best matches first",
+      sql: "SELECT symbol, long_name FROM yfinance.main.search('vanguard') ORDER BY score DESC, symbol",
     },
-    // Composed examples — each combines two or more of this schema's objects.
-    {
-      description:
-        "Watchlist momentum check: compare each ticker's live quote with its own one-month average close " +
-        "from history, to see which names are trading above or below their recent trend",
-      sql:
-        "WITH q AS (SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')), " +
-        "m AS (SELECT q.symbol, avg(h.close) AS avg_close_1mo FROM q, LATERAL yfinance.main.history(q.symbol, range := '1mo') h GROUP BY q.symbol) " +
-        "SELECT q.symbol, q.regular_market_price, round(m.avg_close_1mo, 2) AS avg_close_1mo, " +
-        "round(100 * (q.regular_market_price / m.avg_close_1mo - 1), 2) AS pct_vs_1mo_avg " +
-        "FROM q JOIN m USING (symbol) ORDER BY pct_vs_1mo_avg DESC",
-    },
-    {
-      description:
-        "From company names straight to performance: search resolves each name to its best-matching ticker, " +
-        "then history supplies three months of closes to rank the companies by return — no ticker knowledge needed",
-      sql:
-        "SELECT c.name, s.symbol, round(100 * (arg_max(h.close, h.timestamp) / arg_min(h.close, h.timestamp) - 1), 2) AS return_3mo_pct " +
-        "FROM (VALUES ('apple'), ('nvidia'), ('costco')) c(name), " +
-        "LATERAL yfinance.main.search(c.name, count := 1) s, " +
-        "LATERAL yfinance.main.history(s.symbol, range := '3mo') h " +
-        "GROUP BY c.name, s.symbol ORDER BY return_3mo_pct DESC, c.name",
-    },
-    {
-      description:
-        "Where does every asset class sit in its 52-week range? The symbol_reference registry supplies one valid " +
-        "ticker per Yahoo convention (equity, ETF, index, crypto, FX) and quote prices them all in one pass",
-      sql: REFERENCE_52W_POSITION_SQL,
-    },
-    {
-      description:
-        "How closely does each registry equity and ETF track the S&P 500? Pull six months of daily history for every " +
-        "symbol_reference ticker, turn closes into daily returns, and correlate each against the ^GSPC index's returns",
-      sql:
-        "WITH px AS (SELECT r.symbol, h.timestamp, h.close / lag(h.close) OVER (PARTITION BY r.symbol ORDER BY h.timestamp) - 1 AS ret " +
-        "FROM yfinance.main.symbol_reference r, LATERAL yfinance.main.history(r.symbol, range := '6mo') h " +
-        "WHERE r.asset_type IN ('EQUITY', 'ETF', 'INDEX')) " +
-        "SELECT a.symbol, round(corr(a.ret, b.ret), 3) AS corr_with_sp500 " +
-        "FROM px a JOIN px b ON a.timestamp = b.timestamp AND b.symbol = '^GSPC' " +
-        "WHERE a.symbol <> '^GSPC' GROUP BY a.symbol ORDER BY corr_with_sp500 DESC, a.symbol",
-    },
+    // Composed examples (each combines two or more of this schema's objects); each is also
+    // listed on the object that drives it — see examples.ts.
+    ...COMPOSED_EXAMPLES,
   ]),
 };
 
@@ -262,8 +228,11 @@ const SYMBOL_REFERENCE_VIEW: ViewDescriptor = {
       },
       {
         description: "Count the reference symbols grouped by asset type",
-        sql: "SELECT asset_type, count(*) AS n FROM yfinance.main.symbol_reference GROUP BY asset_type ORDER BY n DESC",
+        sql: "SELECT asset_type, count(*) AS n FROM yfinance.main.symbol_reference GROUP BY asset_type ORDER BY n DESC, asset_type",
       },
+      // Composed: the registry drives quote / history via LATERAL — see examples.ts.
+      REFERENCE_52W_POSITION,
+      REFERENCE_CORRELATION_SP500,
     ]),
   },
 };
