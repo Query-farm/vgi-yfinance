@@ -144,7 +144,8 @@ leading `symbol` is named-only. Before naming a new arg, check it isn't a DuckDB
 ## Gotchas
 
 - `history`'s newest candle: Yahoo often leaves its close NULL (even after the session
-  ends) while `meta.regularMarketPrice` has the price; `parseChart` fills that one cell.
+  ends) while `meta.regularMarketPrice` has the price; `parseChart` fills that one cell, only
+  when `regularMarketTime` falls inside the candle (`barSeconds`), so past windows stay NULL.
 - `history` validates `start_date`/`end_date` at bind (malformed, lone end_date, inverted
   range → error); they used to be ignored silently.
 - `search` `count` is clamped to [1, 50]; NULL means the default 8 (`clampSearchCount`).

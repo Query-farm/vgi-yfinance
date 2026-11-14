@@ -8,6 +8,7 @@ import {
   parseChart,
   fetchHistory,
   dateToEpoch,
+  barSeconds,
   validateHistoryDates,
   type HistoryArgs,
 } from "../src/yahoo.js";
@@ -147,4 +148,47 @@ test("parseChart leaves the newest null close alone when the meta price predates
     "X",
   );
   expect(rows[1]!.close).toBeNull();
+});
+
+// Regression: the fill used to apply whenever the live price was newer than the last
+// candle, so a past start_date/end_date window whose final candle had a NULL close got
+// today's price written into it.
+test("parseChart leaves a past window's null close alone (live price is after that candle)", () => {
+  const env = {
+    chart: {
+      result: [
+        {
+          meta: { symbol: "X", regularMarketPrice: 500, regularMarketTime: 1794603601 },
+          timestamp: [1704205800, 1704292200],
+          indicators: { quote: [{ close: [100, null] }] },
+        },
+      ],
+    },
+  };
+  expect(parseChart(env, "X", "1d")[1]!.close).toBeNull();
+  // A weekly candle still covers a price taken three days after it opened.
+  const weekly = {
+    chart: {
+      result: [
+        {
+          meta: { symbol: "X", regularMarketPrice: 7, regularMarketTime: 1000 + 3 * 86400 },
+          timestamp: [1000],
+          indicators: { quote: [{ close: [null] }] },
+        },
+      ],
+    },
+  };
+  expect(parseChart(weekly, "X", "1wk")[0]!.close).toBe(7);
+  expect(parseChart(weekly, "X", "1d")[0]!.close).toBeNull();
+});
+
+test("barSeconds maps Yahoo intervals and rejects unknown ones", () => {
+  expect(barSeconds("1m")).toBe(60);
+  expect(barSeconds("90m")).toBe(5400);
+  expect(barSeconds("1h")).toBe(3600);
+  expect(barSeconds("1d")).toBe(86400);
+  expect(barSeconds("5d")).toBe(5 * 86400);
+  expect(barSeconds("1wk")).toBe(7 * 86400);
+  expect(barSeconds("3mo")).toBe(93 * 86400);
+  expect(barSeconds("bogus")).toBe(0);
 });

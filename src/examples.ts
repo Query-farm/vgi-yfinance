@@ -66,7 +66,7 @@ export const QUOTE_VS_MONTH_AVERAGE: ExampleQuery = {
 export const FOREIGN_LISTINGS_IN_USD: ExampleQuery = {
   description:
     "Price foreign listings in US dollars: quote each listing, then quote the FX pair named by its own currency " +
-    "column (EUR=X is euros per dollar, JPY=X yen per dollar) and divide. London listings quote in pence " +
+    "column (EUR=X is euros per dollar; JPY=X, which Yahoo echoes back as USDJPY=X, is yen per dollar) and divide. London listings quote in pence " +
     "(currency GBp) and would also need dividing by 100, so none is included",
   sql:
     "SELECT l.symbol, l.currency, l.regular_market_price AS local_price, fx.symbol AS fx_pair, " +

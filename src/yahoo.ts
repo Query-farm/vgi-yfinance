@@ -108,8 +108,19 @@ interface ChartEnvelope {
   chart?: { result?: ChartResult[] | null; error?: { code?: string; description?: string } | null };
 }
 
+/**
+ * Upper bound on how long one candle of Yahoo `interval` spans, in seconds (months and
+ * quarters rounded up). Unknown widths give 0, which disables the newest-close fill below.
+ */
+export function barSeconds(interval: string): number {
+  const m = /^(\d+)(m|h|d|wk|mo)$/.exec(interval);
+  if (!m) return 0;
+  const unit = { m: 60, h: 3600, d: 86400, wk: 7 * 86400, mo: 31 * 86400 }[m[2] as "m" | "h" | "d" | "wk" | "mo"];
+  return Number(m[1]) * unit;
+}
+
 /** Map one v8 chart envelope to OHLCV rows. Surfaces Yahoo's own `error` as a throw. */
-export function parseChart(json: unknown, symbol: string): HistoryRow[] {
+export function parseChart(json: unknown, symbol: string, interval: string = "1d"): HistoryRow[] {
   const env = json as ChartEnvelope;
   const err = env.chart?.error;
   if (err) throw new Error(`yfinance history(${symbol}): ${err.code ?? "error"} — ${err.description ?? "unknown"}`);
@@ -138,7 +149,8 @@ export function parseChart(json: unknown, symbol: string): HistoryRow[] {
   // Yahoo often leaves the newest candle's close (and adjclose) null for a while — even
   // after the session ends — although open/high/low/volume are filled and the chart `meta`
   // already carries the last price. Fill that one cell from meta.regularMarketPrice when the
-  // price's timestamp falls inside the candle, so "latest close" queries don't silently skip
+  // price's timestamp falls inside the candle (at or after its open, before the next one
+  // would open), so "latest close" queries don't silently skip
   // to the previous day. Only the last candle is touched; older null cells stay null.
   const last = rows[rows.length - 1];
   const livePrice = result.meta?.regularMarketPrice;
@@ -149,7 +161,8 @@ export function parseChart(json: unknown, symbol: string): HistoryRow[] {
     typeof livePrice === "number" &&
     Number.isFinite(livePrice) &&
     typeof liveTime === "number" &&
-    liveTime >= last.timestamp
+    liveTime >= last.timestamp &&
+    liveTime < last.timestamp + barSeconds(interval)
   ) {
     last.close = livePrice;
     if (last.adjclose === null) last.adjclose = livePrice;
@@ -163,7 +176,7 @@ export async function fetchHistory(
   host: string = YF_HOST,
   nowMs: number = Date.now(),
 ): Promise<HistoryRow[]> {
-  return parseChart(await get(chartUrl(a, host, nowMs)), a.symbol);
+  return parseChart(await get(chartUrl(a, host, nowMs)), a.symbol, a.interval || "1d");
 }
 
 // ── quote (keyless, backed by the v8 chart `meta` block) ────────────────────

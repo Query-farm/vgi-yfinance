@@ -114,7 +114,8 @@ ORDER BY w.sym;
 Columns: `symbol`, `timestamp` (`TIMESTAMP WITH TIME ZONE`, UTC), `open`, `high`, `low`,
 `close`, `adjclose` (`DOUBLE`), `volume` (`BIGINT`). Thin/halted candles come back as `NULL`
 cells, never a crash. Yahoo often leaves the newest candle's `close` empty for a while, even
-after the session ends; the worker fills that one cell from the latest market price.
+after the session ends; the worker fills that one cell from the latest market price when
+that price falls inside the candle (never for a past `start_date`/`end_date` window).
 
 History results advertise a **60-second client-cache lifetime**, with per-symbol
 reuse enabled on the correlated `LATERAL` path. Matching calls can reuse a response
