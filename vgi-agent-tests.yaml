@@ -24,6 +24,28 @@ tasks:
       The answer reports a plausible recent AAPL daily closing price obtained from the
       history function.
 
+  # Composed tasks: the natural solution chains two objects (search -> history,
+  # symbol_reference -> quote). check_sql asserts the chain itself resolves on live data.
+  - name: nvidia_vs_month_average
+    check_sql: >-
+      SELECT count(*) > 0 FROM yfinance.main.search('nvidia', count := 1) s,
+      LATERAL yfinance.main.history(s.symbol, range := '1mo') h
+      WHERE s.symbol = 'NVDA' AND h.close IS NOT NULL
+    success_criteria: >-
+      The answer resolves NVIDIA to NVDA via search, then uses NVDA's one-month history to
+      compare the latest close with the one-month average close, stating above/below and
+      the size of the gap.
+
+  - name: etf_nearest_52w_high
+    check_sql: >-
+      SELECT count(*) = 2 FROM yfinance.main.symbol_reference r,
+      LATERAL yfinance.main.quote(r.symbol) q
+      WHERE r.asset_type = 'ETF' AND q.fifty_two_week_high IS NOT NULL
+    success_criteria: >-
+      The answer takes the ETF rows of symbol_reference (SPY and VOO), quotes them, and names
+      the one whose current price is closest to its 52-week high (by percentage gap), with
+      the supporting figures.
+
   - name: class_share_symbol_format
     check_sql: >-
       SELECT count(*) > 0 FROM yfinance.main.symbol_reference

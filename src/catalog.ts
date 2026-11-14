@@ -13,6 +13,15 @@ import type { CatalogDescriptor, VgiFunction, ViewDescriptor } from "@query-farm
 const REPO = "https://github.com/Query-farm/vgi-yfinance";
 const ISSUES = `${REPO}/issues`;
 
+// Composed example: symbol_reference (static registry) LATERAL-joined to quote (live
+// snapshot). Shown at schema level AND guaranteed-runnable at catalog level, so one constant
+// keeps the two SQL strings byte-identical.
+const REFERENCE_52W_POSITION_SQL =
+  "SELECT r.asset_type, r.symbol, q.regular_market_price, " +
+  "round(100 * (q.regular_market_price - q.fifty_two_week_low) / (q.fifty_two_week_high - q.fifty_two_week_low), 1) AS pct_of_52w_range " +
+  "FROM yfinance.main.symbol_reference r, LATERAL yfinance.main.quote(r.symbol) q " +
+  "ORDER BY r.asset_type, pct_of_52w_range DESC, r.symbol";
+
 /** Catalog-level tags: docs, discovery, provenance, and the agent-test suite. */
 const CATALOG_TAGS: Record<string, string> = {
   "vgi.title": "Yahoo Finance",
@@ -61,6 +70,13 @@ const CATALOG_TAGS: Record<string, string> = {
       description: "Fetch the last few daily candles for a ticker",
       sql: "SELECT timestamp, close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp",
     },
+    {
+      name: "reference_52w_position",
+      description:
+        "Quote every instrument in the symbol_reference registry and place it in its 52-week range — " +
+        "the registry supplies valid tickers of every asset type, quote supplies the live prices",
+      sql: REFERENCE_52W_POSITION_SQL,
+    },
   ]),
   // The agent-suitability suite (catalog only). The published tag carries ONLY `name` +
   // `prompt` — the grader fields (check_sql, success_criteria) live in the private sidecar
@@ -77,6 +93,16 @@ const CATALOG_TAGS: Record<string, string> = {
     {
       name: "apple_recent_close",
       prompt: "What was Apple's (AAPL) closing price on the most recent trading day?",
+    },
+    {
+      name: "nvidia_vs_month_average",
+      prompt:
+        "Find NVIDIA's ticker by its company name, then tell me whether its latest daily close is above or below its average close over the past month, and by how much.",
+    },
+    {
+      name: "etf_nearest_52w_high",
+      prompt:
+        "Of the ETFs listed in this catalog's symbol reference, which one is currently trading closest to its 52-week high?",
     },
     {
       name: "class_share_symbol_format",
@@ -125,6 +151,47 @@ const SCHEMA_TAGS: Record<string, string> = {
     {
       description: "Find a ticker by company name",
       sql: "SELECT symbol, long_name FROM yfinance.main.search('vanguard')",
+    },
+    // Composed examples — each combines two or more of this schema's objects.
+    {
+      description:
+        "Watchlist momentum check: compare each ticker's live quote with its own one-month average close " +
+        "from history, to see which names are trading above or below their recent trend",
+      sql:
+        "WITH q AS (SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')), " +
+        "m AS (SELECT q.symbol, avg(h.close) AS avg_close_1mo FROM q, LATERAL yfinance.main.history(q.symbol, range := '1mo') h GROUP BY q.symbol) " +
+        "SELECT q.symbol, q.regular_market_price, round(m.avg_close_1mo, 2) AS avg_close_1mo, " +
+        "round(100 * (q.regular_market_price / m.avg_close_1mo - 1), 2) AS pct_vs_1mo_avg " +
+        "FROM q JOIN m USING (symbol) ORDER BY pct_vs_1mo_avg DESC",
+    },
+    {
+      description:
+        "From company names straight to performance: search resolves each name to its best-matching ticker, " +
+        "then history supplies three months of closes to rank the companies by return — no ticker knowledge needed",
+      sql:
+        "SELECT c.name, s.symbol, round(100 * (arg_max(h.close, h.timestamp) / arg_min(h.close, h.timestamp) - 1), 2) AS return_3mo_pct " +
+        "FROM (VALUES ('apple'), ('nvidia'), ('costco')) c(name), " +
+        "LATERAL yfinance.main.search(c.name, count := 1) s, " +
+        "LATERAL yfinance.main.history(s.symbol, range := '3mo') h " +
+        "GROUP BY c.name, s.symbol ORDER BY return_3mo_pct DESC, c.name",
+    },
+    {
+      description:
+        "Where does every asset class sit in its 52-week range? The symbol_reference registry supplies one valid " +
+        "ticker per Yahoo convention (equity, ETF, index, crypto, FX) and quote prices them all in one pass",
+      sql: REFERENCE_52W_POSITION_SQL,
+    },
+    {
+      description:
+        "How closely does each registry equity and ETF track the S&P 500? Pull six months of daily history for every " +
+        "symbol_reference ticker, turn closes into daily returns, and correlate each against the ^GSPC index's returns",
+      sql:
+        "WITH px AS (SELECT r.symbol, h.timestamp, h.close / lag(h.close) OVER (PARTITION BY r.symbol ORDER BY h.timestamp) - 1 AS ret " +
+        "FROM yfinance.main.symbol_reference r, LATERAL yfinance.main.history(r.symbol, range := '6mo') h " +
+        "WHERE r.asset_type IN ('EQUITY', 'ETF', 'INDEX')) " +
+        "SELECT a.symbol, round(corr(a.ret, b.ret), 3) AS corr_with_sp500 " +
+        "FROM px a JOIN px b ON a.timestamp = b.timestamp AND b.symbol = '^GSPC' " +
+        "WHERE a.symbol <> '^GSPC' GROUP BY a.symbol ORDER BY corr_with_sp500 DESC, a.symbol",
     },
   ]),
 };

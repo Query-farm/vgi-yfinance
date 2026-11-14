@@ -161,6 +161,39 @@ Columns: `symbol`, `short_name`, `long_name`, `exchange`, `quote_type`, `type_di
 `score`. `query` may be a literal or a column (`LATERAL`); `count` (default 8, per query) is
 clamped to `[1, 50]`; news results are dropped.
 
+### Combining functions
+
+The functions compose: feed one's output into another with `LATERAL`, and join the
+results with plain SQL. Go from company names to a performance ranking without knowing
+any tickers — `search` resolves each name, `history` supplies the closes:
+
+```sql
+SELECT c.name, s.symbol,
+       round(100 * (arg_max(h.close, h.timestamp) / arg_min(h.close, h.timestamp) - 1), 2) AS return_3mo_pct
+FROM (VALUES ('apple'), ('nvidia'), ('costco')) c(name),
+     LATERAL yf.search(c.name, count := 1) s,
+     LATERAL yf.history(s.symbol, range := '3mo') h
+GROUP BY c.name, s.symbol
+ORDER BY return_3mo_pct DESC, c.name;
+```
+
+Or compare each live `quote` with its own one-month average close from `history`:
+
+```sql
+WITH q AS (SELECT symbol, regular_market_price FROM yf.quote('AAPL,MSFT,GOOG')),
+     m AS (SELECT q.symbol, avg(h.close) AS avg_close_1mo
+           FROM q, LATERAL yf.history(q.symbol, range := '1mo') h
+           GROUP BY q.symbol)
+SELECT q.symbol, q.regular_market_price, round(m.avg_close_1mo, 2) AS avg_close_1mo,
+       round(100 * (q.regular_market_price / m.avg_close_1mo - 1), 2) AS pct_vs_1mo_avg
+FROM q JOIN m USING (symbol)
+ORDER BY pct_vs_1mo_avg DESC;
+```
+
+The static `yf.symbol_reference` registry (one valid ticker per Yahoo symbol convention,
+no network) is a ready-made input: `LATERAL yf.quote(r.symbol)` over it prices every
+asset class at once.
+
 ## Development
 
 ```bash
