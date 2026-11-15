@@ -1,0 +1,78 @@
+{
+  "query": "SELECT * FROM yf.main.search('apple',count:=8) ORDER BY score DESC NULLS LAST,symbol",
+  "captured_at": "2026-11-15T00:24:34.341166+00:00",
+  "columns": [
+    "symbol",
+    "short_name",
+    "long_name",
+    "exchange",
+    "quote_type",
+    "type_disp",
+    "score"
+  ],
+  "rows": [
+    [
+      "AAPL",
+      "Apple Inc.",
+      "Apple Inc.",
+      "NASDAQ",
+      "EQUITY",
+      "Equity",
+      319381.0
+    ],
+    [
+      "SAAPL=F",
+      "Apple Inc Stock Futures,Dec-202",
+      "Apple Inc Single Stock futures",
+      "Chicago Mercantile Exchange",
+      "FUTURE",
+      "Futures",
+      30103.0
+    ],
+    [
+      "TAAPL=F",
+      "BTIC Apple Inc Stock Futures,De",
+      null,
+      "Chicago Mercantile Exchange",
+      "FUTURE",
+      "Futures",
+      30010.0
+    ],
+    [
+      "XAAPL=F",
+      "Micro Apple Inc Stock Futures,D",
+      null,
+      "Chicago Mercantile Exchange",
+      "FUTURE",
+      "Futures",
+      30001.0
+    ],
+    [
+      "APLE",
+      "Apple Hospitality REIT, Inc.",
+      "Apple Hospitality REIT, Inc.",
+      "NYSE",
+      "EQUITY",
+      "Equity",
+      20865.0
+    ],
+    [
+      "AAPL.TO",
+      "APPLE CDR (CAD HEDGED)",
+      "Apple Inc.",
+      "Toronto",
+      "EQUITY",
+      "Equity",
+      20235.0
+    ],
+    [
+      "AAPY",
+      "Kurv Yield Premium Strategy App",
+      "Kurv Yield Premium Strategy Apple ETF",
+      "BATS Trading",
+      "ETF",
+      "ETF",
+      20087.0
+    ]
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "repository": "Query-farm/vgi-yfinance",
+  "revision": "d49e9e0c876ce7a28bf7053464cea3f7b743da42",
+  "captured_at": "2026-11-15T00:24:34.113880+00:00",
+  "default_schema": "main",
+  "scope": "all_public_functions_and_tables",
+  "complete": true,
+  "evidence": [
+    {
+      "path": "coverage/arguments.json",
+      "sha256": "7ab7b307caa2ec64677b3d9fb12b434789bf41dbe903888341be44bf56cf22bc",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/catalog-metadata.json",
+      "sha256": "cb99331b7bb1d8b3eb845f9a60b4f4cf32bf99858d92068222352ce892a73d62",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/copy-formats.json",
+      "sha256": "6335d80376c4b71177ba8c3962df4427308dbc27fe21f9d4eb15a9de226f64c7",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/functions.json",
+      "sha256": "76f3a1edb87f668859e6da7bba308b56e6b3620c3ba0546a4029d6c72fc6164e",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/history-columns.json",
+      "sha256": "500ddb56c54de99d59adb3c501e32153121f63f738f0b9b4404e3802fee4aff7",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/quote-columns.json",
+      "sha256": "16acf201a9219ac434bba8d7f7c2c473590c07d0f7fdfddc50a8756e9f2a07cd",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/search-columns.json",
+      "sha256": "be5b567ae7216cfc86090e7dc3008be446180a7885daec14b8ff5f3b987e01ef",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/source-compatibility.json",
+      "sha256": "d9f51fc0ca5278a81d99a282fe377ea9a9cf92f6297e8f1ee8085edbd5b75dab",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/symbol_reference-columns.json",
+      "sha256": "9bc1a8626b62e3676ebfb4bb213b644b11b361990c131569d3a9f0aa523ce787",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/symbol_reference.json",
+      "sha256": "4bf9b81a14032b36492a64f0d11929c0daf9eeffb8af3c62dc38e869c8d37a71",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/tables.json",
+      "sha256": "eb54cf5f395640e8032a11169d2649bc8e132cb79b0e2351483731ee064896ef",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    },
+    {
+      "path": "coverage/views.json",
+      "sha256": "6b19a4e9b5dc5d78b3d80642c9dc56ce7cc7310f2cb0700347ea7081cd409e07",
+      "description": "Actual release functions/view/arguments and full column signatures; reviewed current source differences."
+    }
+  ],
+  "objects": [
+    {
+      "schema": "main",
+      "name": "history",
+      "kind": "function",
+      "authentication": "none",
+      "access": "read",
+      "signatures": [
+        "history(symbol VARCHAR, start_date VARCHAR, prepost BOOLEAN, range VARCHAR, end_date VARCHAR, bar VARCHAR) -> TABLE(symbol VARCHAR, timestamp TIMESTAMP WITH TIME ZONE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, adjclose DOUBLE, volume BIGINT)"
+      ]
+    },
+    {
+      "schema": "main",
+      "name": "quote",
+      "kind": "function",
+      "authentication": "none",
+      "access": "read",
+      "signatures": [
+        "quote(symbols VARCHAR) -> TABLE(symbol VARCHAR, short_name VARCHAR, long_name VARCHAR, currency VARCHAR, exchange VARCHAR, quote_type VARCHAR, regular_market_price DOUBLE, regular_market_change DOUBLE, regular_market_change_percent DOUBLE, regular_market_volume BIGINT, regular_market_day_high DOUBLE, regular_market_day_low DOUBLE, regular_market_previous_close DOUBLE, fifty_two_week_high DOUBLE, fifty_two_week_low DOUBLE, regular_market_time TIMESTAMP WITH TIME ZONE)"
+      ]
+    },
+    {
+      "schema": "main",
+      "name": "search",
+      "kind": "function",
+      "authentication": "none",
+      "access": "read",
+      "signatures": [
+        "search(query VARCHAR, count BIGINT) -> TABLE(symbol VARCHAR, short_name VARCHAR, long_name VARCHAR, exchange VARCHAR, quote_type VARCHAR, type_disp VARCHAR, score DOUBLE)"
+      ]
+    },
+    {
+      "schema": "main",
+      "name": "symbol_reference",
+      "kind": "table",
+      "authentication": "none",
+      "access": "read",
+      "signatures": [
+        "VIEW(symbol VARCHAR, name VARCHAR, asset_type VARCHAR, exchange VARCHAR, notes VARCHAR)"
+      ],
+      "access_kind": "view"
+    }
+  ],
+  "launch": "github-auto://Query-farm/vgi-yfinance@v0.6.0",
+  "runtime": "Haybarn2.0.0rc11",
+  "review_notes": "Complete fixed public catalog:3row-transform functions(history,quote,search)+symbol_reference view. No ordinary tables/COPY or auth requirements. Registry lists8illustrativeformat examples, not fullinstrument universe. Both release/current substitute close when upstream adjclose is absent, with no per-cell origin flag; notebooks state this limitation. Current public source adds strict YYYY-MM-DD/inverted/lone-end date validation, fills newest missing close from regularMarketPrice only when its timestamp lies inside that newest candle, and clamps search count0/negative to1 instead of release fallback8. Examples/comments are expanded; devWrangler4.160\u21924.161 changes rootlock while runtime dependency specs stay unchanged. Function registration, schemas, symbol_reference VALUES, quote client/mapping and read transport match. These notebooks use valid closed2024windows, historical bars unaffected by newest-candle fill, and searchcount8: the reviewed differences do not change those selected operations. Current compatible interface coverage does not claim exact current runtime execution or universal behavioral equivalence."
+}

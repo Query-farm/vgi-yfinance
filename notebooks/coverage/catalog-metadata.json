@@ -1,0 +1,47 @@
+{
+  "query": "SELECT * FROM duckdb_databases() WHERE database_name='yf'",
+  "captured_at": "2026-11-15T00:24:34.122472+00:00",
+  "columns": [
+    "database_name",
+    "database_oid",
+    "path",
+    "comment",
+    "tags",
+    "internal",
+    "type",
+    "readonly",
+    "encrypted",
+    "cipher",
+    "options"
+  ],
+  "rows": [
+    [
+      "yf",
+      22595,
+      null,
+      "Yahoo Finance market data as DuckDB tables: history (OHLCV), quote (snapshot), search (symbol lookup) \u2014 vgi-yfinance",
+      {
+        "vgi.agent_test_tasks": "[{\"name\":\"microsoft_ticker\",\"prompt\":\"What stock ticker symbol does Microsoft Corporation trade under?\"},{\"name\":\"apple_currency\",\"prompt\":\"In what currency is Apple (AAPL) stock priced?\"},{\"name\":\"apple_recent_close\",\"prompt\":\"What was Apple's (AAPL) closing price on the most recent trading day?\"},{\"name\":\"class_share_symbol_format\",\"prompt\":\"Yahoo Finance writes class shares (like Berkshire Hathaway's Class B) with a special symbol format. Which ticker in this catalog's symbol reference illustrates that convention?\"}]",
+        "vgi.author": "Query Farm LLC",
+        "vgi.copyright": "Copyright 2026 Query Farm LLC",
+        "vgi.doc_llm": "Live and historical stock-market data from Yahoo Finance as SQL table functions. Reach for it to pull OHLCV price history for a ticker, snapshot the current price and day/52-week range for one or more tickers, or resolve a company name to its ticker symbol. Keyless \u2014 no API key or secret. Symbols use Yahoo's convention (AAPL, BRK-B, BTC-USD, ^GSPC). Data is Yahoo's unofficial public feed: best-effort, for informational use.",
+        "vgi.doc_md": "## Yahoo Finance\n\nMarket data from Yahoo Finance's public, keyless endpoints as DuckDB table functions: OHLCV price history over a named or explicit date range, current-price snapshots (price, change, day & 52-week range, volume) for a list of tickers, and name-to-ticker resolution.\n\nNo secret or API key is required. Prices are delayed and provided for informational use only; review Yahoo's terms before redistribution. Intraday candles are only available for recent ranges.",
+        "vgi.executable_examples": "[{\"name\":\"search_symbol\",\"description\":\"Resolve a company name to candidate tickers\",\"sql\":\"SELECT symbol, short_name FROM yfinance.main.search('apple') LIMIT 3\"},{\"name\":\"recent_history\",\"description\":\"Fetch the last few daily candles for a ticker\",\"sql\":\"SELECT timestamp, close FROM yfinance.main.history('AAPL', range := '5d') ORDER BY timestamp\"}]",
+        "vgi.keywords": "[\"stocks\",\"equities\",\"ticker\",\"OHLCV\",\"market data\",\"quotes\",\"share price\",\"finance\",\"yahoo finance\",\"ETF\"]",
+        "vgi.license": "MIT",
+        "vgi.subtitle": "Keyless stock price history, live quotes and ticker lookup from Yahoo Finance.",
+        "vgi.support_contact": "https://github.com/Query-farm/vgi-yfinance/issues",
+        "vgi.support_policy_url": "https://github.com/Query-farm/vgi-yfinance/issues",
+        "vgi.title": "Yahoo Finance"
+      },
+      false,
+      "vgi",
+      false,
+      false,
+      null,
+      {
+        "location": "github-auto://Query-farm/vgi-yfinance@v0.6.0"
+      }
+    ]
+  ]
+}

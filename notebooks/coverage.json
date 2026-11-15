@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "catalogs": {
+    "released": {
+      "path": "coverage/catalog-released.json",
+      "sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_earthquakes",
+        "reviewed_at": "2026-11-15T00:39:46.137696+00:00",
+        "catalog_sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+        "notes": "Complete actual native release catalog3functions+1referenceview=4logical surfaces, no tables/COPY/auth. Full arguments and column signatures retained. Current same interface has newer date validation, latest-candle missing-close fill, count0/negative handling and devWrangler update. These notebooks use valid closed historical windows and searchcount8; selected operation compatibility reviewed. Current source not built/run; do not infer universal behavioral equivalence."
+      }
+    },
+    "current": {
+      "path": "coverage/catalog-current.json",
+      "sha256": "6b2154e3960270e839032edcb5a8e3f61da7c8dfd5198caf7ebac05e9963ae2a",
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_earthquakes",
+        "reviewed_at": "2026-11-15T00:39:46.137696+00:00",
+        "catalog_sha256": "6b2154e3960270e839032edcb5a8e3f61da7c8dfd5198caf7ebac05e9963ae2a",
+        "notes": "Complete actual native release catalog3functions+1referenceview=4logical surfaces, no tables/COPY/auth. Full arguments and column signatures retained. Current same interface has newer date validation, latest-candle missing-close fill, count0/negative handling and devWrangler update. These notebooks use valid closed historical windows and searchcount8; selected operation compatibility reviewed. Current source not built/run; do not infer universal behavioral equivalence."
+      }
+    }
+  },
+  "notebooks": [
+    {
+      "path": "01_align_adjusted_price_paths.ipynb",
+      "sha256": "c3ed095dd5540d7eca9305e2871380b9a92dd5c37a33b0c4b219d00fa15421dc",
+      "execution": {
+        "path": "coverage/run-01.json",
+        "sha256": "bf356962a7f207c43d01ee71a2ba953ae1b21de7c072c4c61a7b5149ecff3732"
+      }
+    },
+    {
+      "path": "02_search_candidates_and_quote_provenance.ipynb",
+      "sha256": "0f514168290ffbdbddcbc2eb14d1d4fc44a76613146763fdbd53ec7f95c9f77f",
+      "execution": {
+        "path": "coverage/run-02.json",
+        "sha256": "a03ea39cf0b6a27ecc17cb2423a5aabb1d90da14035c815244195eeaf3fcd123"
+      }
+    }
+  ],
+  "examples": [
+    {
+      "object": {
+        "schema": "main",
+        "name": "history"
+      },
+      "notebook": "01_align_adjusted_price_paths.ipynb",
+      "sql": [
+        {
+          "cell": "connection",
+          "reference": "yf.history"
+        }
+      ],
+      "narrative_cells": [
+        "question",
+        "alignment-story",
+        "rebase-story",
+        "experiment-story"
+      ],
+      "result_cells": [
+        "source-finding",
+        "fingerprint-finding",
+        "paths-chart",
+        "drawdown-chart",
+        "checks-finding"
+      ],
+      "interpretation_cells": [
+        "paths-chart",
+        "drawdown-chart",
+        "alignment-story"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_earthquakes",
+        "reviewed_at": "2026-11-15T00:39:46.137696+00:00",
+        "notebook_sha256": "c3ed095dd5540d7eca9305e2871380b9a92dd5c37a33b0c4b219d00fa15421dc",
+        "catalog_sha256": [
+          "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+          "6b2154e3960270e839032edcb5a8e3f61da7c8dfd5198caf7ebac05e9963ae2a"
+        ],
+        "purpose": "Compare bounded historical adjusted-price paths on common observed dates with backward-looking in-window peaks.",
+        "finding": "Three fixedUSlistings, explicit2024Jan1\u2013Apr1exclusive bounds, dailyregularbars materializedonce. Finite positive adjustedclose intersection supports rebasing and drawdown; no forwardfill/calendar completeness inference. Released adjclose can fall back to close with no per-cell origin flag, explicitly documented. LocalstartJan\u2192Feb changes base/peak while full live source is separately compared and fixed-default counterfactual recomputed."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "search"
+      },
+      "notebook": "02_search_candidates_and_quote_provenance.ipynb",
+      "sql": [
+        {
+          "cell": "search-query",
+          "reference": "yf.main.search"
+        }
+      ],
+      "narrative_cells": [
+        "question",
+        "parameter-story",
+        "search-story",
+        "experiment-story"
+      ],
+      "result_cells": [
+        "roster-finding",
+        "inventory-finding",
+        "fields-chart",
+        "checks-finding"
+      ],
+      "interpretation_cells": [
+        "roster-finding",
+        "parameter-story"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_earthquakes",
+        "reviewed_at": "2026-11-15T00:39:46.137696+00:00",
+        "notebook_sha256": "0f514168290ffbdbddcbc2eb14d1d4fc44a76613146763fdbd53ec7f95c9f77f",
+        "catalog_sha256": [
+          "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+          "6b2154e3960270e839032edcb5a8e3f61da7c8dfd5198caf7ebac05e9963ae2a"
+        ],
+        "purpose": "Expose name-search ambiguity before treating a result as an instrument identity.",
+        "finding": "Fixedapplequery requests8candidates; actual7span equity/futures/ETF, relevance scores notprobabilities. Stable localrank scoreDESCNULLSLAST/symbol drives display3\u21927 only; upstreambudget unchanged. Allreturned symbols materialized before quote enrichment."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "symbol_reference"
+      },
+      "notebook": "02_search_candidates_and_quote_provenance.ipynb",
+      "sql": [
+        {
+          "cell": "search-query",
+          "reference": "yf.main.symbol_reference"
+        }
+      ],
+      "narrative_cells": [
+        "question",
+        "search-story"
+      ],
+      "result_cells": [
+        "roster-finding",
+        "checks-finding"
+      ],
+      "interpretation_cells": [
+        "roster-finding",
+        "search-story"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_earthquakes",
+        "reviewed_at": "2026-11-15T00:39:46.137696+00:00",
+        "notebook_sha256": "0f514168290ffbdbddcbc2eb14d1d4fc44a76613146763fdbd53ec7f95c9f77f",
+        "catalog_sha256": [
+          "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+          "6b2154e3960270e839032edcb5a8e3f61da7c8dfd5198caf7ebac05e9963ae2a"
+        ],
+        "purpose": "Use curated symbol examples to annotate candidate identity without dropping unmatched live results.",
+        "finding": "Leftjoin allsearchhits to full8-row symbolformatregistry; onlyAAPL matched in observedrun. Reference names/types/notes displayed; unmatched does not mean invalid and membership is not instrument approval. Registry unique-key check protects candidate denominator."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "quote"
+      },
+      "notebook": "02_search_candidates_and_quote_provenance.ipynb",
+      "sql": [
+        {
+          "cell": "quote-query",
+          "reference": "yf.main.quote"
+        }
+      ],
+      "narrative_cells": [
+        "quote-story",
+        "fields-story",
+        "time-story",
+        "experiment-story"
+      ],
+      "result_cells": [
+        "inventory-finding",
+        "fields-chart",
+        "ages-chart",
+        "checks-finding"
+      ],
+      "interpretation_cells": [
+        "inventory-finding",
+        "fields-story",
+        "time-story"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_earthquakes",
+        "reviewed_at": "2026-11-15T00:39:46.137696+00:00",
+        "notebook_sha256": "0f514168290ffbdbddcbc2eb14d1d4fc44a76613146763fdbd53ec7f95c9f77f",
+        "catalog_sha256": [
+          "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+          "6b2154e3960270e839032edcb5a8e3f61da7c8dfd5198caf7ebac05e9963ae2a"
+        ],
+        "purpose": "Preserve requested identities and distinguish populated quote fields from snapshot timing.",
+        "finding": "All7distinct searchcandidates quoted once throughLATERAL and materialized; requested/returned symbols verified thenleftjoined. Currentrun all7rows returned; fieldscomplete yet one markettimestamp8.25daysold. Missingrows/fields remain allowed and explicit; no crosscurrency pricesums, exchange-calendar or freshnesspromise. Per-symbolHTTPerrors may beomitted byrelease, so unavailable is notdiagnosed."
+      }
+    }
+  ]
+}

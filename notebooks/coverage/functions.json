@@ -1,0 +1,153 @@
+{
+  "query": "SELECT * FROM duckdb_functions() WHERE database_name='yf' ORDER BY schema_name,function_name",
+  "captured_at": "2026-11-15T00:24:34.113880+00:00",
+  "columns": [
+    "database_name",
+    "database_oid",
+    "schema_name",
+    "function_name",
+    "alias_of",
+    "function_type",
+    "description",
+    "comment",
+    "tags",
+    "return_type",
+    "parameters",
+    "parameter_types",
+    "varargs",
+    "macro_definition",
+    "has_side_effects",
+    "internal",
+    "extension_name",
+    "function_oid",
+    "examples",
+    "stability",
+    "categories"
+  ],
+  "rows": [
+    [
+      "yf",
+      "22595",
+      "main",
+      "history",
+      null,
+      "table",
+      "Historical OHLCV candles for one symbol from Yahoo Finance (v8 chart API). Pick a named window (range := '1y') plus a candle width (bar := '1wk'), or an explicit start_date/end_date range. The symbol may be a column, so LATERAL history(t.sym) fetches candles for every row. Returns columns symbol, timestamp (UTC), open, high, low, close, adjclose, and volume.",
+      null,
+      {
+        "vgi.category": "market-data",
+        "vgi.doc_llm": "Daily or intraday OHLCV candles for a single ticker over a chosen window. Use it for price history, charting, returns, and technical analysis. Pick a named range (range := '1y') with a candle width (bar := '1wk'), or an explicit start_date/end_date range. Thin or halted candles come back as NULL cells rather than failing the scan.",
+        "vgi.doc_md": "## history\n\nHistorical OHLCV candles for one ticker from Yahoo's chart feed. Choose a named `range` (e.g. `'6mo'`, `'1y'`, `'max'`) plus a `bar` candle width (`'1d'`, `'1wk'`, `'1mo'`, or an intraday width like `'5m'` on recent ranges), or pass an explicit `start_date`/`end_date` pair to override `range`. Emits one row per candle, ordered oldest-first; thin or halted candles come back with NULL price cells rather than failing the scan. Intraday bars are only retained by Yahoo for recent windows, so an intraday `bar` on a long `range` yields fewer rows than the range implies. `adjclose` falls back to `close` when Yahoo omits it.",
+        "vgi.example_queries": "[{\"sql\":\"SELECT timestamp, close, volume FROM yfinance.main.history('AAPL', range := '1mo') ORDER BY timestamp DESC LIMIT 5\",\"description\":\"The five most recent daily closes and volumes for Apple\"},{\"sql\":\"SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk')\",\"description\":\"One year of weekly closes for Microsoft\"},{\"sql\":\"SELECT max(high) AS high_52w, min(low) AS low_52w FROM yfinance.main.history('SPY', range := '1y')\",\"description\":\"The 52-week high and low for SPY, aggregated from daily candles\"},{\"sql\":\"SELECT w.sym, max(h.close) AS high_close FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.history(w.sym, range := '1mo') h GROUP BY w.sym\",\"description\":\"Highest close over the last month for every ticker in a table, via LATERAL\"}]",
+        "vgi.result_columns_schema": "[{\"name\":\"symbol\",\"type\":\"VARCHAR\",\"description\":\"The ticker, echoed from Yahoo's chart metadata.\"},{\"name\":\"timestamp\",\"type\":\"TIMESTAMP WITH TIME ZONE\",\"description\":\"Candle open time, in UTC.\"},{\"name\":\"open\",\"type\":\"DOUBLE\",\"description\":\"Opening price for the candle.\"},{\"name\":\"high\",\"type\":\"DOUBLE\",\"description\":\"Highest traded price during the candle.\"},{\"name\":\"low\",\"type\":\"DOUBLE\",\"description\":\"Lowest traded price during the candle.\"},{\"name\":\"close\",\"type\":\"DOUBLE\",\"description\":\"Closing price for the candle.\"},{\"name\":\"adjclose\",\"type\":\"DOUBLE\",\"description\":\"Split/dividend-adjusted close; falls back to close when Yahoo omits it.\"},{\"name\":\"volume\",\"type\":\"BIGINT\",\"description\":\"Shares or contracts traded during the candle.\"}]"
+      },
+      null,
+      [
+        "symbol",
+        "start_date",
+        "prepost",
+        "range",
+        "end_date",
+        "bar"
+      ],
+      [
+        "VARCHAR",
+        "VARCHAR",
+        "BOOLEAN",
+        "VARCHAR",
+        "VARCHAR",
+        "VARCHAR"
+      ],
+      null,
+      null,
+      null,
+      true,
+      null,
+      22729,
+      [
+        "SELECT timestamp, close, volume FROM yfinance.main.history('AAPL', range := '1mo') ORDER BY timestamp DESC LIMIT 5",
+        "SELECT timestamp, close, volume FROM yfinance.main.history('MSFT', range := '1y', bar := '1wk')",
+        "SELECT max(high) AS high_52w, min(low) AS low_52w FROM yfinance.main.history('SPY', range := '1y')",
+        "SELECT w.sym, max(h.close) AS high_close FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.history(w.sym, range := '1mo') h GROUP BY w.sym"
+      ],
+      null,
+      []
+    ],
+    [
+      "yf",
+      "22595",
+      "main",
+      "quote",
+      null,
+      "table",
+      "Current market snapshot for one or more symbols (keyless, from the chart meta plane): price, change vs previous close, day range, 52-week range, volume. Pass a comma-separated symbol list, or a column (LATERAL quote(t.sym)) for one quote per row.",
+      null,
+      {
+        "vgi.category": "market-data",
+        "vgi.doc_llm": "A current market snapshot for one or more tickers: last price, change vs the previous close, day high/low, 52-week high/low, and volume. Keyless \u2014 one lightweight request per symbol. Use it for watchlists and dashboards; use `history` for a time series.",
+        "vgi.doc_md": "## quote\n\nCurrent-price snapshot for a comma-separated list of tickers, one row per symbol. Backed by Yahoo's keyless chart-metadata plane, so `regular_market_change` and `regular_market_change_percent` are derived from the previous close, and market cap is not available. An unresolvable ticker is dropped rather than failing the batch, so the result may have fewer rows than symbols requested. Each symbol is fetched with its own lightweight request, in parallel, so a long watchlist stays responsive.",
+        "vgi.example_queries": "[{\"sql\":\"SELECT symbol, regular_market_price, regular_market_change_percent FROM yfinance.main.quote('AAPL')\",\"description\":\"Snapshot quote for Apple\"},{\"sql\":\"SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')\",\"description\":\"Latest price for several symbols at once\"},{\"sql\":\"SELECT w.sym, q.regular_market_price FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.quote(w.sym) q\",\"description\":\"Latest price for every ticker in a table, via LATERAL\"}]",
+        "vgi.result_columns_schema": "[{\"name\":\"symbol\",\"type\":\"VARCHAR\",\"description\":\"The ticker the row describes.\"},{\"name\":\"short_name\",\"type\":\"VARCHAR\",\"description\":\"Short display name (e.g. 'Apple Inc.').\"},{\"name\":\"long_name\",\"type\":\"VARCHAR\",\"description\":\"Full/long display name, when Yahoo provides one.\"},{\"name\":\"currency\",\"type\":\"VARCHAR\",\"description\":\"ISO currency the price is quoted in (e.g. 'USD').\"},{\"name\":\"exchange\",\"type\":\"VARCHAR\",\"description\":\"Listing exchange code (e.g. 'NMS').\"},{\"name\":\"quote_type\",\"type\":\"VARCHAR\",\"description\":\"Instrument type: EQUITY, ETF, INDEX, CRYPTOCURRENCY, \u2026\"},{\"name\":\"regular_market_price\",\"type\":\"DOUBLE\",\"description\":\"Last regular-session price.\"},{\"name\":\"regular_market_change\",\"type\":\"DOUBLE\",\"description\":\"Absolute price change versus the previous close.\"},{\"name\":\"regular_market_change_percent\",\"type\":\"DOUBLE\",\"description\":\"Percentage price change versus the previous close.\"},{\"name\":\"regular_market_volume\",\"type\":\"BIGINT\",\"description\":\"Regular-session traded volume.\"},{\"name\":\"regular_market_day_high\",\"type\":\"DOUBLE\",\"description\":\"Highest price in the current session.\"},{\"name\":\"regular_market_day_low\",\"type\":\"DOUBLE\",\"description\":\"Lowest price in the current session.\"},{\"name\":\"regular_market_previous_close\",\"type\":\"DOUBLE\",\"description\":\"Prior regular-session closing price.\"},{\"name\":\"fifty_two_week_high\",\"type\":\"DOUBLE\",\"description\":\"Highest price over the trailing 52 weeks.\"},{\"name\":\"fifty_two_week_low\",\"type\":\"DOUBLE\",\"description\":\"Lowest price over the trailing 52 weeks.\"},{\"name\":\"regular_market_time\",\"type\":\"TIMESTAMP WITH TIME ZONE\",\"description\":\"Time of the last regular-session price, in UTC.\"}]"
+      },
+      null,
+      [
+        "symbols"
+      ],
+      [
+        "VARCHAR"
+      ],
+      null,
+      null,
+      null,
+      true,
+      null,
+      22730,
+      [
+        "SELECT symbol, regular_market_price, regular_market_change_percent FROM yfinance.main.quote('AAPL')",
+        "SELECT symbol, regular_market_price FROM yfinance.main.quote('AAPL,MSFT,GOOG')",
+        "SELECT w.sym, q.regular_market_price FROM (VALUES ('AAPL'), ('MSFT')) w(sym), LATERAL yfinance.main.quote(w.sym) q"
+      ],
+      null,
+      []
+    ],
+    [
+      "yf",
+      "22595",
+      "main",
+      "search",
+      null,
+      "table",
+      "Look up ticker symbols by name or partial symbol (v1 search API). Returns candidate symbols with exchange and instrument type, best matches first. The query may be a column, so LATERAL search(t.name) resolves every row.",
+      null,
+      {
+        "vgi.category": "reference",
+        "vgi.doc_llm": "Resolve a company name or partial symbol to candidate ticker symbols, best matches first. Use it when you only know a name \u2014 take the resulting `symbol` and pass it to `history` or `quote`. Returns equities, ETFs, indices, and other instruments with their exchange and type.",
+        "vgi.doc_md": "## search\n\nTicker lookup over Yahoo's search endpoint. Returns up to `count` candidate symbols (news results are dropped), ranked by Yahoo's relevance score, best matches first. Take the resulting `symbol` and feed it into `history` or `quote`. The `count` argument caps how many candidates come back and is clamped to 1..50 (default 8).",
+        "vgi.example_queries": "[{\"sql\":\"SELECT symbol, short_name, exchange FROM yfinance.main.search('apple')\",\"description\":\"Find symbols matching 'apple'\"},{\"sql\":\"SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20)\",\"description\":\"Up to 20 candidate symbols for a query\"},{\"sql\":\"SELECT c.name, s.symbol FROM (VALUES ('apple'), ('microsoft')) c(name), LATERAL yfinance.main.search(c.name, count := 1) s\",\"description\":\"Best-matching ticker for every company name in a table, via LATERAL\"}]",
+        "vgi.result_columns_schema": "[{\"name\":\"symbol\",\"type\":\"VARCHAR\",\"description\":\"The candidate ticker to use with history/quote.\"},{\"name\":\"short_name\",\"type\":\"VARCHAR\",\"description\":\"Short instrument name.\"},{\"name\":\"long_name\",\"type\":\"VARCHAR\",\"description\":\"Full instrument name, when available.\"},{\"name\":\"exchange\",\"type\":\"VARCHAR\",\"description\":\"Listing exchange display name (e.g. 'NASDAQ').\"},{\"name\":\"quote_type\",\"type\":\"VARCHAR\",\"description\":\"Instrument type code: EQUITY, ETF, INDEX, \u2026\"},{\"name\":\"type_disp\",\"type\":\"VARCHAR\",\"description\":\"Human-friendly instrument type label.\"},{\"name\":\"score\",\"type\":\"DOUBLE\",\"description\":\"Yahoo relevance score; higher means a better match.\"}]"
+      },
+      null,
+      [
+        "query",
+        "count"
+      ],
+      [
+        "VARCHAR",
+        "BIGINT"
+      ],
+      null,
+      null,
+      null,
+      true,
+      null,
+      22731,
+      [
+        "SELECT symbol, short_name, exchange FROM yfinance.main.search('apple')",
+        "SELECT symbol, long_name, exchange FROM yfinance.main.search('vanguard', count := 20)",
+        "SELECT c.name, s.symbol FROM (VALUES ('apple'), ('microsoft')) c(name), LATERAL yfinance.main.search(c.name, count := 1) s"
+      ],
+      null,
+      []
+    ]
+  ]
+}

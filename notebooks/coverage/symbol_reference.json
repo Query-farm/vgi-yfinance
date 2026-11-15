@@ -1,0 +1,69 @@
+{
+  "query": "SELECT * FROM yf.main.symbol_reference ORDER BY symbol",
+  "captured_at": "2026-11-15T00:24:34.130859+00:00",
+  "columns": [
+    "symbol",
+    "name",
+    "asset_type",
+    "exchange",
+    "notes"
+  ],
+  "rows": [
+    [
+      "AAPL",
+      "Apple Inc.",
+      "EQUITY",
+      "NasdaqGS",
+      "Plain US common-stock ticker"
+    ],
+    [
+      "BRK-B",
+      "Berkshire Hathaway Inc. Class B",
+      "EQUITY",
+      "NYSE",
+      "Class share \u2014 the class suffix is written with a hyphen"
+    ],
+    [
+      "BTC-USD",
+      "Bitcoin USD",
+      "CRYPTOCURRENCY",
+      "CCC",
+      "Crypto pair \u2014 base and quote joined with a hyphen"
+    ],
+    [
+      "EURUSD=X",
+      "EUR/USD",
+      "CURRENCY",
+      "CCY",
+      "FX pair \u2014 written with an =X suffix"
+    ],
+    [
+      "MSFT",
+      "Microsoft Corporation",
+      "EQUITY",
+      "NasdaqGS",
+      "Plain US common-stock ticker"
+    ],
+    [
+      "SPY",
+      "SPDR S&P 500 ETF Trust",
+      "ETF",
+      "NYSEArca",
+      "Exchange-traded fund"
+    ],
+    [
+      "VOO",
+      "Vanguard S&P 500 ETF",
+      "ETF",
+      "NYSEArca",
+      "Exchange-traded fund"
+    ],
+    [
+      "^GSPC",
+      "S&P 500 Index",
+      "INDEX",
+      "SNP",
+      "Market index \u2014 written with a caret prefix"
+    ]
+  ]
+}

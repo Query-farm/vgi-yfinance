@@ -1,0 +1,44 @@
+{
+  "query": "SELECT * FROM duckdb_views() WHERE database_name='yf'",
+  "captured_at": "2026-11-15T00:24:34.121470+00:00",
+  "columns": [
+    "database_name",
+    "database_oid",
+    "schema_name",
+    "schema_oid",
+    "view_name",
+    "view_oid",
+    "comment",
+    "tags",
+    "internal",
+    "temporary",
+    "column_count",
+    "sql",
+    "is_bound"
+  ],
+  "rows": [
+    [
+      "yf",
+      22595,
+      "main",
+      22596,
+      "symbol_reference",
+      22791,
+      "A curated, credential-free registry of well-known tickers that demonstrates each Yahoo symbol convention accepted by history, quote, and search. Browsable without any network call.",
+      {
+        "domain": "finance",
+        "vgi.category": "reference",
+        "vgi.doc_llm": "A static, credential-free registry of well-known tickers, one row per symbol, giving its name, asset type (EQUITY, ETF, INDEX, CRYPTOCURRENCY, CURRENCY), listing exchange, and the Yahoo symbol-format convention it illustrates (plain equity, hyphenated class share like BRK-B, caret-prefixed index like ^GSPC, crypto pair like BTC-USD, FX pair like EURUSD=X). Browse it to learn valid symbol formats, then pass a symbol into history, quote, or search. It answers with no network call, so it is the safe first thing to query.",
+        "vgi.doc_md": "## symbol_reference\n\nA browsable, credential-free registry of well-known tickers. One row per symbol, naming the instrument, its asset type, its listing exchange, and the Yahoo symbol-format convention it illustrates. It resolves entirely inside DuckDB \u2014 no network, no key \u2014 so it is the safe first thing to look at. Once you have a `symbol`, pass it into `history`, `quote`, or `search`.",
+        "vgi.example_queries": "[{\"description\":\"List the reference tickers for a given asset type\",\"sql\":\"SELECT symbol, name, exchange FROM yfinance.main.symbol_reference WHERE asset_type = 'ETF' ORDER BY symbol\"},{\"description\":\"Count the reference symbols grouped by asset type\",\"sql\":\"SELECT asset_type, count(*) AS n FROM yfinance.main.symbol_reference GROUP BY asset_type ORDER BY n DESC\"}]",
+        "vgi.keywords": "[\"symbols\",\"tickers\",\"reference\",\"registry\",\"symbol format\",\"conventions\",\"equity\",\"ETF\",\"index\",\"crypto\"]",
+        "vgi.title": "Ticker Symbol Registry"
+      },
+      false,
+      false,
+      null,
+      "CREATE VIEW symbol_reference AS SELECT symbol, \"name\", asset_type, exchange, notes FROM (SELECT * FROM (VALUES ('AAPL', 'Apple Inc.', 'EQUITY', 'NasdaqGS', 'Plain US common-stock ticker'), ('MSFT', 'Microsoft Corporation', 'EQUITY', 'NasdaqGS', 'Plain US common-stock ticker'), ('BRK-B', 'Berkshire Hathaway Inc. Class B', 'EQUITY', 'NYSE', 'Class share \u2014 the class suffix is written with a hyphen'), ('SPY', 'SPDR S&P 500 ETF Trust', 'ETF', 'NYSEArca', 'Exchange-traded fund'), ('VOO', 'Vanguard S&P 500 ETF', 'ETF', 'NYSEArca', 'Exchange-traded fund'), ('^GSPC', 'S&P 500 Index', 'INDEX', 'SNP', 'Market index \u2014 written with a caret prefix'), ('BTC-USD', 'Bitcoin USD', 'CRYPTOCURRENCY', 'CCC', 'Crypto pair \u2014 base and quote joined with a hyphen'), ('EURUSD=X', 'EUR/USD', 'CURRENCY', 'CCY', 'FX pair \u2014 written with an =X suffix')) AS valueslist) AS t(symbol, \"name\", asset_type, exchange, notes);",
+      false
+    ]
+  ]
+}

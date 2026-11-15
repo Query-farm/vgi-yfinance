@@ -1,0 +1,78 @@
+{
+  "query": "DESCRIBE SELECT * FROM yf.main.history('AAPL',start_date:='2024-01-01',end_date:='2024-04-01',bar:='1d')",
+  "captured_at": "2026-11-15T00:24:34.125724+00:00",
+  "columns": [
+    "column_name",
+    "column_type",
+    "null",
+    "key",
+    "default",
+    "extra"
+  ],
+  "rows": [
+    [
+      "symbol",
+      "VARCHAR",
+      "YES",
+      null,
+      null,
+      null
+    ],
+    [
+      "timestamp",
+      "TIMESTAMP WITH TIME ZONE",
+      "YES",
+      null,
+      null,
+      null
+    ],
+    [
+      "open",
+      "DOUBLE",
+      "YES",
+      null,
+      null,
+      null
+    ],
+    [
+      "high",
+      "DOUBLE",
+      "YES",
+      null,
+      null,
+      null
+    ],
+    [
+      "low",
+      "DOUBLE",
+      "YES",
+      null,
+      null,
+      null
+    ],
+    [
+      "close",
+      "DOUBLE",
+      "YES",
+      null,
+      null,
+      null
+    ],
+    [
+      "adjclose",
+      "DOUBLE",
+      "YES",
+      null,
+      null,
+      null
+    ],
+    [
+      "volume",
+      "BIGINT",
+      "YES",
+      null,
+      null,
+      null
+    ]
+  ]
+}

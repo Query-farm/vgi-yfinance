@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "notebook_sha256": "0f514168290ffbdbddcbc2eb14d1d4fc44a76613146763fdbd53ec7f95c9f77f",
+  "catalog_sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+  "worker_revision": "v0.6.0",
+  "status": "success",
+  "executed_at": "2026-11-15T00:39:26.553316+00:00",
+  "engine": "Haybarn2.0.0rc11 / published VGI extension",
+  "command": "uv run --locked python artifacts/execute_with_receipts.py; invokes python -m vgi_notebooks.execute 02_search_candidates_and_quote_provenance.ipynb",
+  "catalog_aliases": [
+    "yf"
+  ],
+  "cells": [
+    {
+      "id": "parameters",
+      "status": "success",
+      "execution_count": 1,
+      "source_sha256": "2d108d8c3a90b1b027f509056fc43d46eeb0eac771b5afa1f59ed94d5b51399c",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "bootstrap",
+      "status": "success",
+      "execution_count": 2,
+      "source_sha256": "994e1fd6b29ed20faebd114e16289c91e44932f371509b0cda5c3a1c75b14634",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "setup",
+      "status": "success",
+      "execution_count": 3,
+      "source_sha256": "25819875ab3a6b6c5ef752c847028eb1ae115fb5bac312e5a51f4038cd99ebea",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "connection",
+      "status": "success",
+      "execution_count": 4,
+      "source_sha256": "3c4adfb69f06c425f69d4cfaf8a8a5d603cd7c3b484c91f600b782b76f8fb310",
+      "outputs_sha256": "c17c19a5c176854762c97c96bafef62f247262c382ecc6533cf998819c105960"
+    },
+    {
+      "id": "search-query",
+      "status": "success",
+      "execution_count": 5,
+      "source_sha256": "a0198af27807b3a3d0495accac2071023144f881feda805da1d7f9285f22075a",
+      "outputs_sha256": "23c8940505861b0952ea3eeab2c75a52fa17ba150448cdb4800ec9653ee5050b"
+    },
+    {
+      "id": "roster-query",
+      "status": "success",
+      "execution_count": 6,
+      "source_sha256": "fa5749ee7b285516063020cf7e16242467afc85282e32c9a31a29b2fe7699abc",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "roster-finding",
+      "status": "success",
+      "execution_count": 7,
+      "source_sha256": "c105cdfc3361fde356f3f6f34fb60a2e449d2d14bbedd92e2b582be371b1a232",
+      "outputs_sha256": "7a08b729298b134906536525806b682f16ea882927e8c644ead824b8fe5b95bf"
+    },
+    {
+      "id": "quote-query",
+      "status": "success",
+      "execution_count": 8,
+      "source_sha256": "491ed29dc167e080f3e1ac0911929deb0b1f78ac4ef97a37349d8fcf951523c8",
+      "outputs_sha256": "3aebf501f17c9480cd5b863e4e9f29e97ebdc9441bc67ae88e0185a4d9cea8ae"
+    },
+    {
+      "id": "retrieval-clock",
+      "status": "success",
+      "execution_count": 9,
+      "source_sha256": "a06ff77012646a5890e07f0b5ce404badc0e20697dab1837ecbf9a71124eaea9",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "inventory-build",
+      "status": "success",
+      "execution_count": 10,
+      "source_sha256": "edccbcd0e3a817a7c7f8815f729321bb2e15236d69d4b3675f94f6ba3d091dda",
+      "outputs_sha256": "5bd2e32b8da421423a3de9177c238d6e1764ee417af110c4bd906f33b3869ac9"
+    },
+    {
+      "id": "inventory-query",
+      "status": "success",
+      "execution_count": 11,
+      "source_sha256": "d7567beea7fdf788a25b9be440d65e1ef87504c79aa4b8c2022e9b7111b71c79",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "inventory-finding",
+      "status": "success",
+      "execution_count": 12,
+      "source_sha256": "f705374c64a46e1fc14226be5d9a9203407ccb429f7cedae122a9754b54ddcf0",
+      "outputs_sha256": "d1816504b8d5fa894fb2fde192f34df39fb43cb6112507df59fcdefde89f3b3f"
+    },
+    {
+      "id": "accounting-query",
+      "status": "success",
+      "execution_count": 13,
+      "source_sha256": "5759a33fdaa794eac4a0aa06217f17d9589bf2e5feaa13ea424c0a13aae3ad19",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "fields-chart",
+      "status": "success",
+      "execution_count": 14,
+      "source_sha256": "27842087091d008d2eee02f87fee44d935c2cca7a90773f11377721830d1f10e",
+      "outputs_sha256": "0c2116e1c2bf17bfcaf09d34e36b1b438de16d196b1480785b0a6817f82a1bdb"
+    },
+    {
+      "id": "ages-chart",
+      "status": "success",
+      "execution_count": 15,
+      "source_sha256": "67dd508b15f49e011cc800697537bc42081923c0a0a05f64b231ee6176dd9c0a",
+      "outputs_sha256": "8ed5211d02c9191c702f85d894f977ed4df596c50ec6aadce4def4546d8f65b9"
+    },
+    {
+      "id": "checks-query",
+      "status": "success",
+      "execution_count": 16,
+      "source_sha256": "8e8f82868b2f08d34be7a145d4120890f59be5f9334d7b8f657c3b19ca480940",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "checks-finding",
+      "status": "success",
+      "execution_count": 17,
+      "source_sha256": "fa3f857b22ca6c4937b64ffcdd367735152dc0ccc26e02e411d35237f50087e4",
+      "outputs_sha256": "309d6d5c4dd2200bfa78549dba43a8e63e20f2c24c536776d6c8cbc64c8998fd"
+    },
+    {
+      "id": "cleanup",
+      "status": "success",
+      "execution_count": 18,
+      "source_sha256": "4299db96a3b77b03e4e6443b7a42b69fce389beb28daf22600ded182bb18b667",
+      "outputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  ]
+}

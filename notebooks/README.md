@@ -1,87 +1,125 @@
-# Yahoo Finance: align dates before comparing price paths
+# Yahoo Finance notebooks
 
-[01 · Align dates before comparing adjusted price paths](01_align_adjusted_price_paths.ipynb)
-retrieves daily January–March 2024 bars for AAPL, MSFT and SPY. Visible SQL
-materializes history once, audits missing values, selects shared observation dates,
-rebases adjusted closes and computes a past-only running peak. Two charts explain
-how the starting date affects both an index and an in-window drawdown.
+Two independent SQL stories use actual public Yahoo Finance responses through the
+native **v0.6.0** release. They do not submit trades, use credentials, or substitute
+recorded/fabricated data when a service fails.
 
-## Run
+| Notebook | Question | Local experiment |
+| --- | --- | --- |
+| [Align adjusted price paths](01_align_adjusted_price_paths.ipynb) | How do shared observation dates and the chosen starting point affect rebased prices and in-window drawdowns? | `DISPLAY_START`: 2024-01-01 → 2024-02-01 |
+| [Search candidates and quote provenance](02_search_candidates_and_quote_provenance.ipynb) | Which identities and fields survive from a bounded name search to snapshots with their own timestamps? | `CANDIDATE_LIMIT`: 3 → 7 |
 
-Install [uv](https://docs.astral.sh/uv/), then from this directory:
+The first preserves the original AAPL/MSFT/SPY analysis for the fixed half-open
+period **[2024-01-01, 2024-04-01)**, with daily regular-session bars materialized
+once, no interpolation and no forward fill. Vendor-adjusted close is not a
+simulated investment account; fees, taxes and reinvestment transactions are not
+modeled. The release falls back from absent upstream adjusted-close cells to close and has no per-cell origin flag; returned adjustment factors are descriptive, not independently certified. Missing dates are not automatically exchange holidays.
+
+The second asks `search('apple', count:=8)` once, joins its entire returned roster
+to the eight-row illustrative `symbol_reference` view, and obtains one quote per
+distinct candidate. A local rank limit changes the display after retrieval; it
+**does not** reduce requests. Search scores are relevance values, not probabilities
+or investment quality. Registry membership is a symbol-format example, not an
+approved investment universe. Different quote currencies/types are displayed and
+never summed or ranked by raw price.
+
+## Run locally or in Colab
+
+Use either notebook's Colab link and Run all. Its brief setup installs the base
+shared package and fetches the immutable, SHA-256-verified presentation helper.
+A notebook-only directory works; no local worker checkout or Bun installation is
+required. For local publication, use the locked runner extra:
 
 ```sh
+cd notebooks
 uv sync --locked
-uv run --locked python execute.py
+uv run --locked vgi-notebooks
+uv run --locked python -m ipykernel install --user --name vgi-yfinance-notebooks --display-name 'VGI Yahoo Finance notebooks'
 ```
 
-The complete `notebooks/` directory runs on its own. No worker checkout, Bun, local
-worker build or API key is needed. The visible literal ATTACH uses
-`github-auto://Query-farm/vgi-yfinance@v0.6.0`; VGI downloads the published archive
-for macOS arm64, Linux x64 or Linux arm64, verifies its checksum and caches it.
-Other platforms need a separately supported worker runtime. The Python environment
-is locked to Haybarn 2.0.0rc11 and its compatible notebook dependencies.
+Choose that kernel in a local editor. The shared environment supports Python
+3.11–3.14; a fresh Python 3.12 kernel with eight existing data/plotting/Jupyter
+libraries loaded validates bootstrap compatibility. Hosted Colab UI execution is
+not claimed. Dependencies, companions and release downloads need network access;
+each analytical run also needs the live Yahoo endpoints.
 
-For VS Code, select `notebooks/.venv/bin/python`. The runner uses a disposable kernel
-specification; it does not register a global kernel. Connections and analytical SQL
-are shown, while setup, plotting, assertions and cleanup are folded. Saved outputs
-are replaced only after successful execution.
+The visible connection is literal and release-pinned:
 
-## Controlled experiment
+```sql
+INSTALL vgi FROM community;
+LOAD vgi;
+ATTACH 'yfinance' AS yf (
+ TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-yfinance@v0.6.0'
+);
+```
+
+Shared connection creation fixes UTC and isolates persisted SQL secrets in an
+empty temporary directory before ATTACH. This worker has no auth requirement.
+The native binary checksum is verified; no source build or local binary fallback
+is used. Native cold download was tested anonymously on macOS ARM64. Other native
+assets and hosted Colab were not manually operated.
+
+## Save parameter experiments separately
 
 ```sh
-uv run --locked python execute.py --parameters '{"DISPLAY_START":"2024-02-01"}' --output-dir validation/february
+uv run --locked vgi-notebooks 01_align_adjusted_price_paths.ipynb \
+  --parameters '{"DISPLAY_START":"2024-02-01"}' --output-dir validation/february
+uv run --locked vgi-notebooks 02_search_candidates_and_quote_provenance.ipynb \
+  --parameters '{"CANDIDATE_LIMIT":7}' --output-dir validation/seven-candidates
 ```
 
-Overrides require a separate destination. The runner rejects unknown parameters
-and invalid dates without replacing the last successful notebook. Copies include
-the assets, runner and locked environment. The supported display-start range is
-2024-01-01 through 2024-03-01. Reset to 2024-01-01 for the default example; restart
-the kernel and run all after editing.
+The historical request window stays fixed. The first common observation, rebasing
+and backward-looking peak reset after local selection. Each run retrieves live
+prices again: compare raw values/fingerprints, and use the validation comparison
+on fixed default prices to separate window effects from vendor revisions.
 
-Each run performs fresh public reads for the same fixed interval
-`[2024-01-01, 2024-04-01)`, using daily regular-session bars. Yahoo can revise even
-historical values. The default and experiment are a controlled comparison only
-when their underlying price data agree. The final check cell writes ignored
-`validation/data/history.csv`, `comparison.csv` and `run.json` so those values can
-be compared directly. Network failures stop execution; there is no synthetic or
-recorded-data fallback. Initial package, extension and release downloads also need
-network access.
+In final validation, 127 of 183 adjusted closes changed slightly between live runs: maximum absolute difference 0.0001221 and relative difference 2.542e-7 (about 0.0000254%). All other source columns matched exactly. February’s curves agreed with recomputation on the default prices within 0.000042 index/percentage points. Those are measured run differences, not guaranteed precision bounds. The common-date cohort changed from 61 dates beginning January 2 to 40 beginning February 1.
 
-An empty temporary SQL secret directory with persistent secrets disabled prevents
-saved credentials from affecting the connection. This worker itself is keyless.
-No account, trades or remote writes are involved.
+The second run retains the full bounded search and quote population, then expands
+only the displayed ranks. Search can return fewer than eight candidates. Its
+request budget is one search plus at most eight logical quotes, derived from the
+reviewed implementation; no network interception/request audit is claimed. A
+snapshot age is elapsed calendar time from the vendor's regular-market timestamp
+to retrieval end, not a market-open test, exchange-session count or freshness guarantee.
 
-## Read the charts carefully
+In final snapshot validation, all seven candidate identities, relevance scores, quote values, vendor times and availability flags matched across the two runs. Calendar ages advanced by 55 seconds with the retrieval clock while the local display grew from three to seven rows.
 
-- The fixed examples are two equities and an ETF, not a selection rule or portfolio.
-- Each adjusted-price index starts at 100 on the first shared observed date, which
-  may follow the selected lower bound. No missing price is forward-filled.
-- `adjclose` is Yahoo's vendor-adjusted series. Its adjustment factors may be
-  revised. The notebook does not simulate cash distributions, reinvestment trades,
-  execution, taxes or fees.
-- A drawdown uses only the highest adjusted close already seen in the selected
-  window. Earlier peaks and excluded dates can change what it measures. Zero is a
-  selected-window high, not zero risk.
-- UTC dates identify these US regular-session observations. Price history alone
-  cannot establish an exchange's holiday calendar or distinguish all missing-data
-  causes.
+The released quote function catches per-symbol failures and may omit those rows;
+the notebook left-joins from the requested roster and labels them unavailable.
+It cannot diagnose whether an omission means an unknown symbol, service failure,
+rate limit or missing metadata. Search/history HTTP errors stop execution. No
+missing value is filled with zero. Nonempty useful data and identity/accounting
+checks are required in each run.
 
-Twelve SQL checks validate unique keys, bounds, alignment, common start values,
-finite positive adjusted closes, nondecreasing peaks and an independent correlated
-past-only peak calculation. They test the mechanics, not completeness or future
-performance. The fixed source period remains visible in SQL.
+## Catalog, source differences and validation
 
-Data is retrieved from [Yahoo Finance](https://finance.yahoo.com/) and its public
-chart endpoint. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)
-for the intended use. No raw API response fixture is distributed. The saved example
-contains its executed tables and charts with retrieval timestamps; reruns may vary.
-The unchanged official Query.Farm Strata Sun wordmark is linked at both ends of the
-notebook, with the VGI logo near the top.
+The [coverage manifest](coverage.json) links complete actual catalog evidence,
+visible SQL, saved outputs and interpretation. The release has **four logical
+surfaces**: `history`, `search`, `quote`, and the `symbol_reference` view. All four
+have meaningful executed coverage; the inventory includes all public functions,
+views, tables and COPY formats (no ordinary tables or COPY formats are present).
 
-Validation observed small differences in 119 of 183 adjusted closes between the
-default and experiment: maximum absolute difference 0.000123, maximum relative
-difference below 0.000025%. All other source columns matched exactly. The experiment
-agreed with independently recomputing the changed window on the original prices
-within 0.0001 index or percentage points. This documents those runs; it does not
-promise a bound on future vendor changes.
+The release tag peels to `b6a1efed55aff238f0f645f2339b50a1903184b4`.
+Current source `d49e9e0c876ce7a28bf7053464cea3f7b743da42` has the same public
+signatures and view definition, but includes newer strict history-date validation,
+a latest-candle missing-close fill, and a corrected search-count clamp for zero or
+negative values. Its Wrangler development dependency also changed. These examples
+use valid historical date bounds, past candles and `count:=8`, so the reviewed
+changes do not alter these selected operations. We do not claim universal runtime
+equivalence: coverage is **4/4 exact release**, **4/4 current compatible interface**,
+and **0 exact current-source executions**. No worker was rebuilt.
+
+The unchanged worker reuses [green source CI](https://github.com/Query-farm/vgi-yfinance/actions/runs/43587723456).
+The separate existing [image-publish failure](https://github.com/Query-farm/vgi-yfinance/actions/runs/43587723462)
+failed its nested live SQLLogic job while the ordinary source CI at the same revision passed. This pre-existing discrepancy is retained; no image/deployment workflow is dispatched here.
+Default/experiment runs, 13 historical and 12 snapshot SQL checks, output comparisons, six runner
+guards, fresh preloaded bootstrap, figure review and public SVG byte verification
+cover the notebook changes. Run timestamps and source labels distinguish live data
+from illustrative narrative. Values and search rankings can change on rerun.
+
+The proper worker title/subtitle come from actual catalog metadata. The maintained
+[shared notebook standard](https://github.com/Query-farm/vgi-example-notebooks/blob/main/docs/standard.md)
+provides branding, SVG output and safe execution. Committed content-addressed SVG
+links render on GitHub; Jupyter/Colab retain native SVG. Logs, data exports and
+review PNGs remain ignored. `yfinance_example.py` only validates the display date
+and plots SQL-returned results; all financial calculations remain visible SQL.

@@ -1,0 +1,332 @@
+{
+  "schema_version": 1,
+  "status": "met",
+  "meets_target": true,
+  "catalogs": {
+    "released": {
+      "catalog_status": "verified",
+      "revision": "v0.6.0",
+      "catalog_sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c",
+      "collection_reconciled": true,
+      "denominator": 4,
+      "observed_objects": 4,
+      "required": 4,
+      "verified_count": 4,
+      "candidate_count": 0,
+      "fraction": 1.0,
+      "meets_target": true,
+      "exact_runtime_count": 4,
+      "runtime_revisions": [
+        "v0.6.0"
+      ],
+      "covered": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "history"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "quote"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "search"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "symbol_reference"
+        }
+      ],
+      "uncovered": [],
+      "objects": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "history",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "history(symbol VARCHAR, start_date VARCHAR, prepost BOOLEAN, range VARCHAR, end_date VARCHAR, bar VARCHAR) -> TABLE(symbol VARCHAR, timestamp TIMESTAMP WITH TIME ZONE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, adjclose DOUBLE, volume BIGINT)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "quote",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "quote(symbols VARCHAR) -> TABLE(symbol VARCHAR, short_name VARCHAR, long_name VARCHAR, currency VARCHAR, exchange VARCHAR, quote_type VARCHAR, regular_market_price DOUBLE, regular_market_change DOUBLE, regular_market_change_percent DOUBLE, regular_market_volume BIGINT, regular_market_day_high DOUBLE, regular_market_day_low DOUBLE, regular_market_previous_close DOUBLE, fifty_two_week_high DOUBLE, fifty_two_week_low DOUBLE, regular_market_time TIMESTAMP WITH TIME ZONE)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "search",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "search(query VARCHAR, count BIGINT) -> TABLE(symbol VARCHAR, short_name VARCHAR, long_name VARCHAR, exchange VARCHAR, quote_type VARCHAR, type_disp VARCHAR, score DOUBLE)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "symbol_reference",
+          "kinds": [
+            "table"
+          ],
+          "signatures": [
+            "VIEW(symbol VARCHAR, name VARCHAR, asset_type VARCHAR, exchange VARCHAR, notes VARCHAR)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        }
+      ],
+      "issues": []
+    },
+    "current": {
+      "catalog_status": "verified",
+      "revision": "d49e9e0c876ce7a28bf7053464cea3f7b743da42",
+      "catalog_sha256": "6b2154e3960270e839032edcb5a8e3f61da7c8dfd5198caf7ebac05e9963ae2a",
+      "collection_reconciled": true,
+      "denominator": 4,
+      "observed_objects": 4,
+      "required": 4,
+      "verified_count": 4,
+      "candidate_count": 0,
+      "fraction": 1.0,
+      "meets_target": true,
+      "exact_runtime_count": 0,
+      "runtime_revisions": [
+        "v0.6.0"
+      ],
+      "covered": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "history"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "quote"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "search"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "symbol_reference"
+        }
+      ],
+      "uncovered": [],
+      "objects": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "history",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "history(symbol VARCHAR, start_date VARCHAR, prepost BOOLEAN, range VARCHAR, end_date VARCHAR, bar VARCHAR) -> TABLE(symbol VARCHAR, timestamp TIMESTAMP WITH TIME ZONE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, adjclose DOUBLE, volume BIGINT)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "quote",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "quote(symbols VARCHAR) -> TABLE(symbol VARCHAR, short_name VARCHAR, long_name VARCHAR, currency VARCHAR, exchange VARCHAR, quote_type VARCHAR, regular_market_price DOUBLE, regular_market_change DOUBLE, regular_market_change_percent DOUBLE, regular_market_volume BIGINT, regular_market_day_high DOUBLE, regular_market_day_low DOUBLE, regular_market_previous_close DOUBLE, fifty_two_week_high DOUBLE, fifty_two_week_low DOUBLE, regular_market_time TIMESTAMP WITH TIME ZONE)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "search",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "search(query VARCHAR, count BIGINT) -> TABLE(symbol VARCHAR, short_name VARCHAR, long_name VARCHAR, exchange VARCHAR, quote_type VARCHAR, type_disp VARCHAR, score DOUBLE)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "symbol_reference",
+          "kinds": [
+            "table"
+          ],
+          "signatures": [
+            "VIEW(symbol VARCHAR, name VARCHAR, asset_type VARCHAR, exchange VARCHAR, notes VARCHAR)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        }
+      ],
+      "issues": []
+    }
+  },
+  "interface_drift": {
+    "known": true,
+    "current_only": [],
+    "released_only": [],
+    "changed": []
+  },
+  "notebooks": {
+    "01_align_adjusted_price_paths.ipynb": {
+      "verified": true,
+      "issues": []
+    },
+    "02_search_candidates_and_quote_provenance.ipynb": {
+      "verified": true,
+      "issues": []
+    }
+  },
+  "examples": [
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "history"
+      },
+      "notebook": "01_align_adjusted_price_paths.ipynb",
+      "runtime_revision": "v0.6.0",
+      "runtime_catalog_sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "search"
+      },
+      "notebook": "02_search_candidates_and_quote_provenance.ipynb",
+      "runtime_revision": "v0.6.0",
+      "runtime_catalog_sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "symbol_reference"
+      },
+      "notebook": "02_search_candidates_and_quote_provenance.ipynb",
+      "runtime_revision": "v0.6.0",
+      "runtime_catalog_sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "quote"
+      },
+      "notebook": "02_search_candidates_and_quote_provenance.ipynb",
+      "runtime_revision": "v0.6.0",
+      "runtime_catalog_sha256": "9973f7b60eb6c2ed30c69aab3a6bb61a5b193b1f1b53efd891987b6332695c7c"
+    }
+  ],
+  "issues": []
+}
