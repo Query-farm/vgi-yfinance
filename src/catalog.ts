@@ -30,7 +30,13 @@ const CATALOG_TAGS: Record<string, string> = {
     "(price, change, day & 52-week range, volume) for a list of tickers, and name-to-ticker " +
     "resolution.\n\n" +
     "No secret or API key is required. Prices are delayed and provided for informational use only; " +
-    "review Yahoo's terms before redistribution. Intraday candles are only available for recent ranges.",
+    "review Yahoo's terms before redistribution. Intraday candles are only available for recent ranges.\n\n" +
+    "### Sources and references\n\n" +
+    "- [Yahoo Finance](https://finance.yahoo.com/), whose unofficial, undocumented chart and search " +
+    "endpoints this worker reads.\n" +
+    "- [Exchanges and data providers on Yahoo Finance](https://help.yahoo.com/kb/SLN2310.html): " +
+    "per-exchange delays and data sources.\n" +
+    "- [Yahoo terms of service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html).",
   "vgi.keywords": JSON.stringify([
     "stocks",
     "equities",
