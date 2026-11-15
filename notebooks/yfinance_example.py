@@ -103,6 +103,10 @@ def quote_fields(data, limit, retrieved):
                 fontsize=10,
             )
     ax.grid(False)
+    for edge in np.arange(-0.5, len(fields), 1):
+        ax.axvline(edge, color="white", linewidth=1.2)
+    for edge in np.arange(-0.5, len(shown), 1):
+        ax.axhline(edge, color="white", linewidth=1.2)
     finish(
         fig,
         "Present fields do not establish a fresh snapshot",
