@@ -22,41 +22,54 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The SQL test runner must speak the same VGI protocol as the community extension.
+  HAYBARN_VERSION: "2.0.0rc11"
+
 jobs:
   # bun test + own-source typecheck (shared reusable workflow).
   ci:
     uses: Query-farm/vgi-actions/.github/workflows/ts-ci.yml@main
 
-  # SQLLogic (haybarn) E2E: the worker attached to a real DuckDB with the vgi extension
-  # installed from the community repository. Bind-time schema asserts are deterministic;
-  # the live-invariant asserts hit Yahoo (an egress connector — network is expected).
+  # SQLLogic (haybarn) E2E: test/sql/ through the published haybarn-unittest runner and
+  # the signed community vgi extension, over every transport (ci/run-integration.sh, as in
+  # the vgi-starter template). Bind-time schema asserts are deterministic; the
+  # live-invariant asserts hit Yahoo (an egress connector — network is expected).
   e2e:
-    name: SQLLogic e2e (haybarn)
+    name: SQLLogic e2e (haybarn, ${{ matrix.transport }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: [stdio, launch, http]
     steps:
       - uses: actions/checkout@v4
-
       - uses: oven-sh/setup-bun@v2
-
       - uses: actions/setup-node@v4
+        if: matrix.transport == 'stdio'
         with:
           node-version: '22'
-
+      - uses: astral-sh/setup-uv@v6
       - name: Install worker dependencies
         run: bun install --frozen-lockfile
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Run SQLLogic suite against the worker
-        run: ./run_tests.sh
-
+      - name: Install the SQL test runner
+        run: |
+          uv venv .tools
+          uv pip install -p .tools "haybarn-unittest==${HAYBARN_VERSION}"
+      - name: Run test/sql over ${{ matrix.transport }}
+        env:
+          WORKER: ${{ github.workspace }}/bin/vgi-yfinance-worker
+          HAYBARN_UNITTEST: ${{ github.workspace }}/.tools/bin/haybarn-unittest
+          TRANSPORT: ${{ matrix.transport }}
+        run: ci/run-integration.sh
       - name: Check Cloudflare deployment bundle
+        if: matrix.transport == 'stdio'
         run: bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/cloudflare-bundle"
 
   # Metadata-quality gate (vgi-lint): scores the worker's catalog/schema/function docs,
   # tags, categories, per-arg docs, and examples. execute:false keeps it deterministic —
-  # the live-network behavior is covered by the e2e job, not here. fail-on info = strict.
+  # the live-network behavior is covered by the e2e jobs, not here. fail-on info = strict.
   lint:
     name: metadata quality (vgi-lint)
     runs-on: ubuntu-latest

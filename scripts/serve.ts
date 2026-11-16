@@ -35,7 +35,7 @@ for (const fn of functions) registry.register(fn);
 
 const catalogInterface = new ReadOnlyCatalogInterface(makeCatalog(functions), registry);
 
-serveVgiWorker({
+const server = serveVgiWorker({
   name: "yfinance",
   doc: "Yahoo Finance market data: history (OHLCV), quote (snapshot), and symbol search.",
   version: "0.6.1",
@@ -44,3 +44,7 @@ serveVgiWorker({
   registry,
   catalogInterface,
 });
+
+// bin/<worker> --http and ci/run-integration.sh read the bound port from this line
+// (PORT=0 binds any free port).
+console.log(`PORT:${server.port}`);

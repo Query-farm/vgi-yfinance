@@ -58,17 +58,16 @@ built on `@query-farm/vgi` (the TS SDK). Keyless — no secret type, no auth.
 bun install
 bun test            # unit tests: pure driver (SDK-free) + Arrow batch builders + HTTP-transport E2E
 bun run typecheck   # own-source only; scripts/typecheck.sh filters node_modules errors
-./run_tests.sh      # haybarn SQLLogic E2E (test/sql/*.test): worker under real DuckDB + community vgi ext
+./run_tests.sh      # = make test-sql-all; haybarn SQLLogic E2E (test/sql/*.test) over stdio/launch/http: worker under real DuckDB + community vgi ext
 uvx --prerelease allow --from 'vgi-lint-check>=2.5.1' vgi-lint lint --execute --execute-mode run  # reads vgi-lint.toml
 ```
 
-`run_tests.sh` uses uv to run matching `haybarn-cli` / `haybarn-unittest` 2.0.0rc11
-packages and refreshes the signed community vgi extension for protocol 3.3. It sets
-`VGI_TEST_WORKER=bin/vgi-yfinance-worker` (override it with a URL to run the same suite
-over HTTP, e.g. `VGI_TEST_WORKER=http://localhost:8787 ./run_tests.sh`) and
-`VGI_WORKER_CATALOG_NAME=yfinance`. `VGI_UNITTEST=/path/to/haybarn-unittest` swaps in a
-locally installed 2.0 runner (`--keep-home` is still passed — without it Haybarn 2.0
-isolates `$HOME` and `LOAD httpfs` fails with "extension not found"). Each `.test` explicitly loads httpfs and clears
+`run_tests.sh` is `make test-sql-all`: `ci/run-integration.sh` (the vgi-starter standard) runs
+`test/sql/*.test` with the pinned `haybarn-unittest` 2.0.0rc11 (`make tools`, into `.tools`) and the
+refreshed signed community vgi extension over stdio, launch (`launch:` unix-socket pool) and HTTP
+(`bin/vgi-yfinance-worker --http --port 0`), setting `VGI_TEST_WORKER` to the matching location.
+With `VGI_TEST_WORKER` set to a URL, `./run_tests.sh` instead runs the suite against that running
+worker (e.g. `VGI_TEST_WORKER=http://localhost:8787 ./run_tests.sh` under `wrangler dev`). Each `.test` explicitly loads httpfs and clears
 DuckDB's default ignored-error list, so HTTP failures cannot become successful skips.
 The suite combines schema checks with live Yahoo invariants. CI runs it alongside
 unit tests, typecheck, metadata lint, and a Cloudflare deploy dry run.
