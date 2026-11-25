@@ -1,6 +1,6 @@
 {
   "name": "vgi-yfinance",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "type": "module",
   "main": "src/worker.ts",
   "license": "MIT",
@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@query-farm/apache-arrow": "^21.1.1",
-    "@query-farm/vgi": "^0.50.1",
-    "@query-farm/vgi-rpc": "^0.29.7"
+    "@query-farm/vgi": "^0.52.3",
+    "@query-farm/vgi-rpc": "^0.30.3"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

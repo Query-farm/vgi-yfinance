@@ -63,7 +63,7 @@ uvx --prerelease allow --from 'vgi-lint-check>=2.5.1' vgi-lint lint --execute --
 ```
 
 `run_tests.sh` is `make test-sql-all`: `ci/run-integration.sh` (the vgi-starter standard) runs
-`test/sql/*.test` with the pinned `haybarn-unittest` 2.0.0rc11 (`make tools`, into `.tools`) and the
+`test/sql/*.test` with the pinned `haybarn-unittest` 2.0.1rc3 (`make tools`, into `.tools`) and the
 refreshed signed community vgi extension over stdio, launch (`launch:` unix-socket pool) and HTTP
 (`bin/vgi-yfinance-worker --http --port 0`), setting `VGI_TEST_WORKER` to the matching location.
 With `VGI_TEST_WORKER` set to a URL, `./run_tests.sh` instead runs the suite against that running
